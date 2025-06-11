@@ -7,6 +7,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
+import RestaurantSignup from "./pages/RestaurantSignup";
+import DomainSetup from "./pages/DomainSetup";
 import AdminDashboard from "./pages/AdminDashboard";
 import RestaurantDashboard from "./pages/RestaurantDashboard";
 import RiderDashboard from "./pages/RiderDashboard";

@@ -1,7 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -20,6 +19,16 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    // Check if domain is provided in URL params
+    const urlDomain = searchParams.get('domain');
+    if (urlDomain) {
+      setDomain(urlDomain);
+      setActiveTab('restaurant'); // Default to restaurant tab for domain-specific login
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,10 +95,21 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">ODMS Login</CardTitle>
-          <CardDescription>
-            Order & Delivery Management System
-          </CardDescription>
+          {domain ? (
+            <>
+              <CardTitle className="text-2xl font-bold">{domain}.odms.com</CardTitle>
+              <CardDescription>
+                Restaurant Management Portal
+              </CardDescription>
+            </>
+          ) : (
+            <>
+              <CardTitle className="text-2xl font-bold">ODMS Login</CardTitle>
+              <CardDescription>
+                Order & Delivery Management System
+              </CardDescription>
+            </>
+          )}
         </CardHeader>
         
         <CardContent>
@@ -196,6 +216,16 @@ export default function Login() {
               </div>
             </TabsContent>
           </Tabs>
+
+          {!domain && (
+            <div className="mt-6 text-center text-sm text-gray-600">
+              <p>Don't have an account? 
+                <Button variant="link" onClick={() => navigate('/signup')} className="p-0 ml-1">
+                  Create Restaurant Account
+                </Button>
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

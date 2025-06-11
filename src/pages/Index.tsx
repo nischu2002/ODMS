@@ -66,9 +66,14 @@ export default function Index() {
               <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg"></div>
               <h1 className="text-xl font-bold text-gray-900">ODMS</h1>
             </div>
-            <Button onClick={() => navigate('/login')}>
-              Get Started
-            </Button>
+            <div className="flex items-center space-x-4">
+              <Button variant="outline" onClick={() => navigate('/login')}>
+                Sign In
+              </Button>
+              <Button onClick={() => navigate('/signup')}>
+                Get Started
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -87,11 +92,11 @@ export default function Index() {
             and analyze performance with domain-based multi-tenant architecture.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" onClick={() => navigate('/login')}>
-              Access Your Dashboard
+            <Button size="lg" onClick={() => navigate('/signup')}>
+              Start Your Restaurant
             </Button>
-            <Button size="lg" variant="outline">
-              Learn More
+            <Button size="lg" variant="outline" onClick={() => navigate('/login')}>
+              Access Dashboard
             </Button>
           </div>
         </div>
@@ -122,10 +127,10 @@ export default function Index() {
           </h2>
           <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
             Join hundreds of restaurants already using ODMS to streamline their order 
-            and delivery management processes.
+            and delivery management processes. Get your custom domain today!
           </p>
-          <Button size="lg" onClick={() => navigate('/login')}>
-            Start Your Journey
+          <Button size="lg" onClick={() => navigate('/signup')}>
+            Create Your Account
           </Button>
         </div>
       </main>

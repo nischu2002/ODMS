@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   email: string;
@@ -18,6 +17,17 @@ export interface Restaurant {
   adminId: string;
   createdAt: string;
   isActive: boolean;
+  businessType?: string;
+}
+
+export interface RestaurantRegistration {
+  restaurantName: string;
+  businessType: string;
+  adminEmail: string;
+  adminPassword: string;
+  ownerName: string;
+  phone: string;
+  address: string;
 }
 
 export interface Order {
