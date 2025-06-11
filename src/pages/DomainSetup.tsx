@@ -18,9 +18,14 @@ export default function DomainSetup() {
   }, []);
 
   const handleGoToDomain = () => {
-    // In a real app, this would redirect to the actual subdomain
-    // For now, we'll redirect to login with domain context
+    // Navigate to login with the domain context
     navigate(`/login?domain=${domain}`);
+  };
+
+  const handleGoToLogin = () => {
+    // Clear registration data and go to login
+    localStorage.removeItem('registrationData');
+    navigate('/login');
   };
 
   if (!registrationData) {
@@ -109,13 +114,20 @@ export default function DomainSetup() {
               </div>
             </div>
 
+            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+              <h3 className="font-semibold text-yellow-800 mb-2">Login Credentials:</h3>
+              <p className="text-sm text-yellow-700">
+                Use your admin email <strong>({registrationData.adminEmail})</strong> and the password you created during registration to login to your restaurant dashboard.
+              </p>
+            </div>
+
             <div className="space-y-4">
-              <Button onClick={handleGoToDomain} size="lg" className="w-full md:w-auto px-8">
-                Access Your Domain
+              <Button onClick={handleGoToLogin} size="lg" className="w-full md:w-auto px-8">
+                Login to Your Restaurant
               </Button>
               
               <p className="text-sm text-gray-600">
-                You can now access your restaurant management system at {domain}.odms.com
+                You can access your restaurant management system anytime at odms.com/login
               </p>
             </div>
           </CardContent>

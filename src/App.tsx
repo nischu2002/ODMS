@@ -41,6 +41,8 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/" element={<Index />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<RestaurantSignup />} />
+      <Route path="/setup/:domain" element={<DomainSetup />} />
       
       {/* Admin Routes */}
       <Route 
