@@ -108,20 +108,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
       }
       
-      // Check registration data first for restaurant admin
-      const registrationData = localStorage.getItem('registrationData');
-      let mockUser: User;
-      let mockRestaurant: Restaurant | null = null;
+      // Get all registered restaurants
+      const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
+      console.log('All restaurants:', allRestaurants);
       
+      // Check registration data for domain-specific authentication
+      const registrationData = localStorage.getItem('registrationData');
       if (registrationData) {
         const regData = JSON.parse(registrationData);
         console.log('Registration data found:', regData);
         
-        // Check if login credentials match the registered admin
-        if (email === regData.adminEmail && password === regData.adminPassword) {
-          console.log('Credentials match registration data');
+        // Check if this is the restaurant admin trying to login with their domain
+        if (domain && regData.domain === domain && email === regData.adminEmail && password === regData.adminPassword) {
+          console.log('Credentials match registration data for domain:', domain);
           
-          mockUser = {
+          const mockUser: User = {
             id: 'admin-' + regData.domain,
             email: regData.adminEmail,
             name: regData.ownerName,
@@ -130,7 +131,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             createdAt: new Date().toISOString()
           };
           
-          mockRestaurant = {
+          const mockRestaurant: Restaurant = {
             id: regData.domain,
             name: regData.restaurantName,
             domain: regData.domain,
@@ -143,6 +144,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             businessType: regData.businessType
           };
           
+          // Store in restaurants array if not already there
+          const existingRestaurant = allRestaurants.find((r: any) => r.domain === regData.domain);
+          if (!existingRestaurant) {
+            allRestaurants.push(mockRestaurant);
+            localStorage.setItem('restaurants', JSON.stringify(allRestaurants));
+          }
+          
           setUser(mockUser);
           setRestaurant(mockRestaurant);
           
@@ -153,91 +161,125 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
       
-      // Check restaurant admins created by super admin
-      const restaurantAdmins = JSON.parse(localStorage.getItem('restaurantAdmins') || '[]');
-      const restaurantAdmin = restaurantAdmins.find((admin: any) => admin.email === email && admin.password === password);
+      // Check existing restaurants for admin login
+      if (domain) {
+        const restaurant = allRestaurants.find((r: any) => r.domain === domain);
+        if (restaurant && restaurant.email === email) {
+          // Need to verify password - check if there's a stored admin for this restaurant
+          const restaurantAdmins = JSON.parse(localStorage.getItem('restaurantAdmins') || '[]');
+          const admin = restaurantAdmins.find((a: any) => a.email === email && a.restaurantId === restaurant.id);
+          
+          if (admin && admin.password === password) {
+            const mockUser: User = {
+              id: admin.id,
+              email: admin.email,
+              name: admin.name,
+              role: 'admin',
+              restaurantId: restaurant.id,
+              createdAt: admin.createdAt
+            };
+            
+            setUser(mockUser);
+            setRestaurant(restaurant);
+            
+            localStorage.setItem('user', JSON.stringify(mockUser));
+            localStorage.setItem('restaurant', JSON.stringify(restaurant));
+            
+            return true;
+          }
+        }
+      }
       
-      if (restaurantAdmin) {
-        const restaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
-        const restaurant = restaurants.find((r: any) => r.id === restaurantAdmin.restaurantId);
+      // Check restaurant staff login
+      if (domain) {
+        const restaurantStaff = JSON.parse(localStorage.getItem(`staff_${domain}`) || '[]');
+        const staff = restaurantStaff.find((s: any) => s.email === email && s.password === password);
         
-        if (restaurant) {
-          mockUser = {
-            id: restaurantAdmin.id,
-            email: restaurantAdmin.email,
-            name: restaurantAdmin.name,
-            role: 'admin',
-            restaurantId: restaurant.id,
-            createdAt: restaurantAdmin.createdAt
-          };
-          
-          mockRestaurant = restaurant;
-          
-          setUser(mockUser);
-          setRestaurant(mockRestaurant);
-          
-          localStorage.setItem('user', JSON.stringify(mockUser));
-          localStorage.setItem('restaurant', JSON.stringify(mockRestaurant));
-          
-          return true;
+        if (staff) {
+          const restaurant = allRestaurants.find((r: any) => r.domain === domain);
+          if (restaurant) {
+            const mockUser: User = {
+              id: staff.id,
+              email: staff.email,
+              name: staff.name,
+              role: 'restaurant_staff',
+              restaurantId: restaurant.id,
+              createdAt: staff.createdAt
+            };
+            
+            setUser(mockUser);
+            setRestaurant(restaurant);
+            
+            localStorage.setItem('user', JSON.stringify(mockUser));
+            localStorage.setItem('restaurant', JSON.stringify(restaurant));
+            
+            return true;
+          }
         }
       }
       
-      // Handle staff and rider logins
-      if (email.includes('staff')) {
-        mockUser = {
-          id: '2',
-          email,
-          name: 'Restaurant Staff',
-          role: 'restaurant_staff',
-          restaurantId: domain || 'demo-restaurant',
-          createdAt: new Date().toISOString()
-        };
-        mockRestaurant = {
-          id: domain || 'demo-restaurant',
-          name: domain || 'Demo Restaurant',
-          domain: domain || 'demo-restaurant',
-          address: '123 Demo Street',
-          phone: '+1234567890',
-          email: 'contact@demo.com',
-          adminId: '1',
-          createdAt: new Date().toISOString(),
-          isActive: true
-        };
-      } else if (email.includes('rider')) {
-        mockUser = {
-          id: '3',
-          email,
-          name: 'Delivery Rider',
-          role: 'rider',
-          restaurantId: domain || 'demo-restaurant',
-          createdAt: new Date().toISOString()
-        };
-        mockRestaurant = {
-          id: domain || 'demo-restaurant',
-          name: domain || 'Demo Restaurant',
-          domain: domain || 'demo-restaurant',
-          address: '123 Demo Street',
-          phone: '+1234567890',
-          email: 'contact@demo.com',
-          adminId: '1',
-          createdAt: new Date().toISOString(),
-          isActive: true
-        };
-      } else {
-        console.log('No matching credentials found');
-        return false;
+      // Check rider login
+      if (domain) {
+        const riders = JSON.parse(localStorage.getItem(`riders_${domain}`) || '[]');
+        const rider = riders.find((r: any) => r.email === email && r.password === password);
+        
+        if (rider) {
+          const restaurant = allRestaurants.find((r: any) => r.domain === domain);
+          if (restaurant) {
+            const mockUser: User = {
+              id: rider.id,
+              email: rider.email,
+              name: rider.name,
+              role: 'rider',
+              restaurantId: restaurant.id,
+              createdAt: rider.createdAt
+            };
+            
+            setUser(mockUser);
+            setRestaurant(restaurant);
+            
+            localStorage.setItem('user', JSON.stringify(mockUser));
+            localStorage.setItem('restaurant', JSON.stringify(restaurant));
+            
+            return true;
+          }
+        }
       }
       
-      setUser(mockUser);
-      setRestaurant(mockRestaurant);
-      
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      if (mockRestaurant) {
+      // Demo credentials fallback
+      if (email.includes('admin') && domain) {
+        const mockUser: User = {
+          id: 'demo-admin-' + domain,
+          email,
+          name: 'Demo Restaurant Admin',
+          role: 'admin',
+          restaurantId: domain,
+          createdAt: new Date().toISOString()
+        };
+        
+        const mockRestaurant: Restaurant = {
+          id: domain,
+          name: `${domain} Restaurant`,
+          domain: domain,
+          address: '123 Demo Street',
+          phone: '+1234567890',
+          email: email,
+          adminId: mockUser.id,
+          createdAt: new Date().toISOString(),
+          isActive: true
+        };
+        
+        setUser(mockUser);
+        setRestaurant(mockRestaurant);
+        
+        localStorage.setItem('user', JSON.stringify(mockUser));
         localStorage.setItem('restaurant', JSON.stringify(mockRestaurant));
+        
+        return true;
       }
       
-      return true;
+      console.log('No matching credentials found');
+      return false;
     } catch (error) {
       console.error('Login failed:', error);
       return false;
