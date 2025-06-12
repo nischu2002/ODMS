@@ -12,12 +12,12 @@ import {
 } from 'lucide-react';
 
 const navigation = [
-  { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-  { name: 'Restaurant Staff', href: '/admin/staff', icon: Users },
-  { name: 'Orders', href: '/admin/orders', icon: ShoppingBag },
-  { name: 'Delivery Riders', href: '/admin/riders', icon: Truck },
-  { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-  { name: 'Restaurant Settings', href: '/admin/settings', icon: Settings },
+  { name: 'Dashboard', href: '/restaurant-admin', icon: LayoutDashboard },
+  { name: 'Restaurant Staff', href: '/restaurant-admin/staff', icon: Users },
+  { name: 'Orders', href: '/restaurant-admin/orders', icon: ShoppingBag },
+  { name: 'Delivery Riders', href: '/restaurant-admin/riders', icon: Truck },
+  { name: 'Analytics', href: '/restaurant-admin/analytics', icon: BarChart3 },
+  { name: 'Restaurant Settings', href: '/restaurant-admin/settings', icon: Settings },
 ];
 
 export const AdminSidebar = () => {

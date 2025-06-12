@@ -36,7 +36,18 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const success = await login(email, password, domain);
+      // Validate domain is provided for restaurant users
+      if (!domain && activeTab !== 'super_admin') {
+        toast({
+          title: "Domain Required",
+          description: "Please enter your restaurant domain.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      const success = await login(email, password, activeTab === 'super_admin' ? undefined : domain);
       
       if (success) {
         toast({
@@ -49,13 +60,15 @@ export default function Login() {
           navigate('/restaurant-admin');
         } else if (activeTab === 'restaurant') {
           navigate('/restaurant');
-        } else {
+        } else if (activeTab === 'rider') {
           navigate('/rider');
+        } else {
+          navigate('/super-admin');
         }
       } else {
         toast({
           title: "Login failed",
-          description: "Invalid credentials. Please try again.",
+          description: "Invalid credentials or domain. Please check your details.",
           variant: "destructive",
         });
       }
@@ -73,13 +86,15 @@ export default function Login() {
   const getDemoCredentials = (role: string) => {
     switch (role) {
       case 'admin':
-        return { email: 'admin@restaurant.com', password: 'admin123' };
+        return { email: 'admin@restaurant.com', password: 'admin123', domain: 'demo-restaurant' };
       case 'restaurant':
-        return { email: 'staff@restaurant.com', password: 'staff123' };
+        return { email: 'staff@restaurant.com', password: 'staff123', domain: 'demo-restaurant' };
       case 'rider':
-        return { email: 'rider@delivery.com', password: 'rider123' };
+        return { email: 'rider@delivery.com', password: 'rider123', domain: 'demo-restaurant' };
+      case 'super_admin':
+        return { email: 'superadmin@odms.com', password: 'superadmin123', domain: '' };
       default:
-        return { email: '', password: '' };
+        return { email: '', password: '', domain: '' };
     }
   };
 
@@ -87,8 +102,8 @@ export default function Login() {
     const creds = getDemoCredentials(activeTab);
     setEmail(creds.email);
     setPassword(creds.password);
-    if (activeTab !== 'admin') {
-      setDomain('sample-restaurant');
+    if (creds.domain) {
+      setDomain(creds.domain);
     }
   };
 
@@ -105,7 +120,7 @@ export default function Login() {
             </>
           ) : (
             <>
-              <CardTitle className="text-2xl font-bold">ODMS Restaurant Login</CardTitle>
+              <CardTitle className="text-2xl font-bold">ODMS Login</CardTitle>
               <CardDescription>
                 Restaurant Order & Delivery Management
               </CardDescription>
@@ -115,7 +130,7 @@ export default function Login() {
         
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="admin" className="flex items-center gap-1">
                 <UserCog className="h-4 w-4" />
                 Admin
@@ -128,20 +143,26 @@ export default function Login() {
                 <Truck className="h-4 w-4" />
                 Rider
               </TabsTrigger>
+              <TabsTrigger value="super_admin" className="flex items-center gap-1 text-xs">
+                Super
+              </TabsTrigger>
             </TabsList>
             
             <form onSubmit={handleSubmit} className="space-y-4 mt-6">
-              <div className="space-y-2">
-                <Label htmlFor="domain">Restaurant Domain</Label>
-                <Input
-                  id="domain"
-                  type="text"
-                  placeholder="restaurant-domain"
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  required
-                />
-              </div>
+              {activeTab !== 'super_admin' && (
+                <div className="space-y-2">
+                  <Label htmlFor="domain">Restaurant Domain</Label>
+                  <Input
+                    id="domain"
+                    type="text"
+                    placeholder="restaurant-domain"
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-gray-500">Enter your restaurant's domain (without .odms.com)</p>
+                </div>
+              )}
               
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -216,13 +237,15 @@ export default function Login() {
             </TabsContent>
           </Tabs>
 
-          <div className="mt-6 text-center text-sm text-gray-600">
-            <p>Don't have an account? 
-              <Button variant="link" onClick={() => navigate('/signup')} className="p-0 ml-1">
-                Create Restaurant Account
-              </Button>
-            </p>
-          </div>
+          {activeTab !== 'super_admin' && (
+            <div className="mt-6 text-center text-sm text-gray-600">
+              <p>Don't have an account? 
+                <Button variant="link" onClick={() => navigate('/signup')} className="p-0 ml-1">
+                  Create Restaurant Account
+                </Button>
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

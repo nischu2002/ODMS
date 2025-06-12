@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
@@ -8,32 +7,25 @@ import { CheckCircle, Globe, Users, Truck, Settings } from 'lucide-react';
 export default function DomainSetup() {
   const { domain } = useParams();
   const navigate = useNavigate();
-  const [registrationData, setRegistrationData] = useState<any>(null);
+  const [restaurant, setRestaurant] = useState<any>(null);
 
   useEffect(() => {
-    const data = localStorage.getItem('registrationData');
-    if (data) {
-      setRegistrationData(JSON.parse(data));
-    }
-  }, []);
+    // Find restaurant by domain
+    const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
+    const foundRestaurant = allRestaurants.find((r: any) => r.domain === domain);
+    setRestaurant(foundRestaurant);
+  }, [domain]);
 
-  const handleGoToDomain = () => {
-    // Navigate to login with the domain context
+  const handleGoToLogin = () => {
     navigate(`/login?domain=${domain}`);
   };
 
-  const handleGoToLogin = () => {
-    // Clear registration data and go to login
-    localStorage.removeItem('registrationData');
-    navigate('/login');
-  };
-
-  if (!registrationData) {
+  if (!restaurant) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <Card className="max-w-md">
           <CardHeader className="text-center">
-            <CardTitle>Domain Not Found</CardTitle>
+            <CardTitle>Restaurant Not Found</CardTitle>
             <CardDescription>
               Please complete the registration process first.
             </CardDescription>
@@ -107,17 +99,17 @@ export default function DomainSetup() {
             <div className="bg-gray-50 p-6 rounded-lg">
               <h3 className="font-semibold mb-3">Account Details:</h3>
               <div className="text-left space-y-2">
-                <p><strong>Restaurant:</strong> {registrationData.restaurantName}</p>
-                <p><strong>Business Type:</strong> {registrationData.businessType}</p>
-                <p><strong>Admin Email:</strong> {registrationData.adminEmail}</p>
-                <p><strong>Owner:</strong> {registrationData.ownerName}</p>
+                <p><strong>Restaurant:</strong> {restaurant.name}</p>
+                <p><strong>Business Type:</strong> {restaurant.businessType}</p>
+                <p><strong>Admin Email:</strong> {restaurant.email}</p>
+                <p><strong>Domain:</strong> {restaurant.domain}.odms.com</p>
               </div>
             </div>
 
             <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
               <h3 className="font-semibold text-yellow-800 mb-2">Login Credentials:</h3>
               <p className="text-sm text-yellow-700">
-                Use your admin email <strong>({registrationData.adminEmail})</strong> and the password you created during registration to login to your restaurant dashboard.
+                Use your admin email <strong>({restaurant.email})</strong> and the password you created during registration to login to your restaurant dashboard.
               </p>
             </div>
 

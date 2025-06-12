@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
@@ -11,12 +10,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Loader2, Store, ArrowLeft } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useForm } from 'react-hook-form';
+import { useAuth } from '../context/AuthContext';
 import { RestaurantRegistration } from '../types';
 
 export default function RestaurantSignup() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { registerRestaurant } = useAuth();
 
   const form = useForm<RestaurantRegistration>({
     defaultValues: {
@@ -58,26 +59,23 @@ export default function RestaurantSignup() {
     setIsLoading(true);
 
     try {
-      // Simulate API call for restaurant registration
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const result = await registerRestaurant(data);
       
-      const domain = generateDomain(data.restaurantName);
-      
-      // Store registration data temporarily (in real app, this would be sent to backend)
-      localStorage.setItem('registrationData', JSON.stringify({
-        ...data,
-        domain,
-        registrationComplete: true
-      }));
+      if (result.success) {
+        toast({
+          title: "Registration Successful!",
+          description: `Your domain ${result.domain}.odms.com has been created.`,
+        });
 
-      toast({
-        title: "Registration Successful!",
-        description: `Your domain ${domain}.odms.com has been created.`,
-      });
-
-      // Redirect to domain setup page
-      navigate(`/setup/${domain}`);
-      
+        // Redirect to domain setup page
+        navigate(`/setup/${result.domain}`);
+      } else {
+        toast({
+          title: "Registration Failed",
+          description: result.error || "Something went wrong. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Registration Failed",

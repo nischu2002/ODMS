@@ -5,10 +5,11 @@ import { User, Restaurant } from '../types';
 interface AuthContextType {
   user: User | null;
   restaurant: Restaurant | null;
-  login: (email: string, password: string, domain?: string, requestedRole?: string) => Promise<boolean>;
+  login: (email: string, password: string, domain?: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
   createSuperAdmin: (email: string, password: string, name: string) => Promise<boolean>;
+  registerRestaurant: (data: any) => Promise<{ success: boolean; domain?: string; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,7 +20,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate checking for existing session
+    // Check for existing session
     const storedUser = localStorage.getItem('user');
     const storedRestaurant = localStorage.getItem('restaurant');
     
@@ -32,6 +33,83 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     
     setIsLoading(false);
   }, []);
+
+  const generateDomain = (restaurantName: string) => {
+    return restaurantName
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  };
+
+  const isDomainUnique = (domain: string) => {
+    const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
+    return !allRestaurants.find((r: any) => r.domain === domain);
+  };
+
+  const isEmailUnique = (email: string) => {
+    const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
+    return !allRestaurants.find((r: any) => r.email === email);
+  };
+
+  const registerRestaurant = async (data: any): Promise<{ success: boolean; domain?: string; error?: string }> => {
+    try {
+      const domain = generateDomain(data.restaurantName);
+      
+      // Check domain uniqueness
+      if (!isDomainUnique(domain)) {
+        return { success: false, error: 'Restaurant name already taken. Please choose a different name.' };
+      }
+      
+      // Check email uniqueness
+      if (!isEmailUnique(data.adminEmail)) {
+        return { success: false, error: 'Email already registered. Please use a different email.' };
+      }
+      
+      const restaurantId = `rest_${Date.now()}`;
+      const adminId = `admin_${Date.now()}`;
+      
+      // Create restaurant
+      const newRestaurant: Restaurant = {
+        id: restaurantId,
+        name: data.restaurantName,
+        domain: domain,
+        address: data.address,
+        phone: data.phone,
+        email: data.adminEmail,
+        adminId: adminId,
+        createdAt: new Date().toISOString(),
+        isActive: true,
+        businessType: data.businessType
+      };
+      
+      // Create admin user
+      const adminUser = {
+        id: adminId,
+        email: data.adminEmail,
+        password: data.adminPassword,
+        name: data.ownerName,
+        role: 'admin',
+        restaurantId: restaurantId,
+        createdAt: new Date().toISOString()
+      };
+      
+      // Store restaurant
+      const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
+      allRestaurants.push(newRestaurant);
+      localStorage.setItem('restaurants', JSON.stringify(allRestaurants));
+      
+      // Store admin user
+      const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
+      allUsers.push(adminUser);
+      localStorage.setItem('users', JSON.stringify(allUsers));
+      
+      return { success: true, domain };
+    } catch (error) {
+      console.error('Registration error:', error);
+      return { success: false, error: 'Registration failed. Please try again.' };
+    }
+  };
 
   const createSuperAdmin = async (email: string, password: string, name: string): Promise<boolean> => {
     setIsLoading(true);
@@ -78,17 +156,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const login = async (email: string, password: string, domain?: string, requestedRole?: string): Promise<boolean> => {
+  const login = async (email: string, password: string, domain?: string): Promise<boolean> => {
     setIsLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('Login attempt:', { email, domain });
       
-      console.log('Login attempt:', { email, password, domain, requestedRole });
-      
-      // Handle super admin login
-      if (requestedRole === 'super_admin') {
+      // Super admin login (no domain required)
+      if (!domain) {
         const superAdmins = JSON.parse(localStorage.getItem('superAdmins') || '[]');
         const superAdmin = superAdmins.find((admin: any) => admin.email === email && admin.password === password);
         
@@ -108,177 +183,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
       }
       
-      // Get all registered restaurants
+      // Restaurant-based login (domain required)
       const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
-      console.log('All restaurants:', allRestaurants);
+      const restaurant = allRestaurants.find((r: any) => r.domain === domain);
       
-      // Check registration data for domain-specific authentication
-      const registrationData = localStorage.getItem('registrationData');
-      if (registrationData) {
-        const regData = JSON.parse(registrationData);
-        console.log('Registration data found:', regData);
-        
-        // Check if this is the restaurant admin trying to login with their domain
-        if (domain && regData.domain === domain && email === regData.adminEmail && password === regData.adminPassword) {
-          console.log('Credentials match registration data for domain:', domain);
-          
-          const mockUser: User = {
-            id: 'admin-' + regData.domain,
-            email: regData.adminEmail,
-            name: regData.ownerName,
-            role: 'admin',
-            restaurantId: regData.domain,
-            createdAt: new Date().toISOString()
-          };
-          
-          const mockRestaurant: Restaurant = {
-            id: regData.domain,
-            name: regData.restaurantName,
-            domain: regData.domain,
-            address: regData.address,
-            phone: regData.phone,
-            email: regData.adminEmail,
-            adminId: mockUser.id,
-            createdAt: new Date().toISOString(),
-            isActive: true,
-            businessType: regData.businessType
-          };
-          
-          // Store in restaurants array if not already there
-          const existingRestaurant = allRestaurants.find((r: any) => r.domain === regData.domain);
-          if (!existingRestaurant) {
-            allRestaurants.push(mockRestaurant);
-            localStorage.setItem('restaurants', JSON.stringify(allRestaurants));
-          }
-          
-          setUser(mockUser);
-          setRestaurant(mockRestaurant);
-          
-          localStorage.setItem('user', JSON.stringify(mockUser));
-          localStorage.setItem('restaurant', JSON.stringify(mockRestaurant));
-          
-          return true;
-        }
+      if (!restaurant) {
+        console.log('Restaurant not found for domain:', domain);
+        return false;
       }
       
-      // Check existing restaurants for admin login
-      if (domain) {
-        const restaurant = allRestaurants.find((r: any) => r.domain === domain);
-        if (restaurant && restaurant.email === email) {
-          // Need to verify password - check if there's a stored admin for this restaurant
-          const restaurantAdmins = JSON.parse(localStorage.getItem('restaurantAdmins') || '[]');
-          const admin = restaurantAdmins.find((a: any) => a.email === email && a.restaurantId === restaurant.id);
-          
-          if (admin && admin.password === password) {
-            const mockUser: User = {
-              id: admin.id,
-              email: admin.email,
-              name: admin.name,
-              role: 'admin',
-              restaurantId: restaurant.id,
-              createdAt: admin.createdAt
-            };
-            
-            setUser(mockUser);
-            setRestaurant(restaurant);
-            
-            localStorage.setItem('user', JSON.stringify(mockUser));
-            localStorage.setItem('restaurant', JSON.stringify(restaurant));
-            
-            return true;
-          }
-        }
-      }
+      // Get all users for this restaurant
+      const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
+      const user = allUsers.find((u: any) => 
+        u.email === email && 
+        u.password === password && 
+        u.restaurantId === restaurant.id
+      );
       
-      // Check restaurant staff login
-      if (domain) {
-        const restaurantStaff = JSON.parse(localStorage.getItem(`staff_${domain}`) || '[]');
-        const staff = restaurantStaff.find((s: any) => s.email === email && s.password === password);
-        
-        if (staff) {
-          const restaurant = allRestaurants.find((r: any) => r.domain === domain);
-          if (restaurant) {
-            const mockUser: User = {
-              id: staff.id,
-              email: staff.email,
-              name: staff.name,
-              role: 'restaurant_staff',
-              restaurantId: restaurant.id,
-              createdAt: staff.createdAt
-            };
-            
-            setUser(mockUser);
-            setRestaurant(restaurant);
-            
-            localStorage.setItem('user', JSON.stringify(mockUser));
-            localStorage.setItem('restaurant', JSON.stringify(restaurant));
-            
-            return true;
-          }
-        }
-      }
-      
-      // Check rider login
-      if (domain) {
-        const riders = JSON.parse(localStorage.getItem(`riders_${domain}`) || '[]');
-        const rider = riders.find((r: any) => r.email === email && r.password === password);
-        
-        if (rider) {
-          const restaurant = allRestaurants.find((r: any) => r.domain === domain);
-          if (restaurant) {
-            const mockUser: User = {
-              id: rider.id,
-              email: rider.email,
-              name: rider.name,
-              role: 'rider',
-              restaurantId: restaurant.id,
-              createdAt: rider.createdAt
-            };
-            
-            setUser(mockUser);
-            setRestaurant(restaurant);
-            
-            localStorage.setItem('user', JSON.stringify(mockUser));
-            localStorage.setItem('restaurant', JSON.stringify(restaurant));
-            
-            return true;
-          }
-        }
-      }
-      
-      // Demo credentials fallback
-      if (email.includes('admin') && domain) {
+      if (user) {
         const mockUser: User = {
-          id: 'demo-admin-' + domain,
-          email,
-          name: 'Demo Restaurant Admin',
-          role: 'admin',
-          restaurantId: domain,
-          createdAt: new Date().toISOString()
-        };
-        
-        const mockRestaurant: Restaurant = {
-          id: domain,
-          name: `${domain} Restaurant`,
-          domain: domain,
-          address: '123 Demo Street',
-          phone: '+1234567890',
-          email: email,
-          adminId: mockUser.id,
-          createdAt: new Date().toISOString(),
-          isActive: true
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          restaurantId: user.restaurantId,
+          createdAt: user.createdAt
         };
         
         setUser(mockUser);
-        setRestaurant(mockRestaurant);
+        setRestaurant(restaurant);
         
         localStorage.setItem('user', JSON.stringify(mockUser));
-        localStorage.setItem('restaurant', JSON.stringify(mockRestaurant));
+        localStorage.setItem('restaurant', JSON.stringify(restaurant));
         
         return true;
       }
       
-      console.log('No matching credentials found');
+      console.log('User not found or invalid credentials');
       return false;
     } catch (error) {
       console.error('Login failed:', error);
@@ -296,7 +237,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, restaurant, login, logout, isLoading, createSuperAdmin }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      restaurant, 
+      login, 
+      logout, 
+      isLoading, 
+      createSuperAdmin,
+      registerRestaurant
+    }}>
       {children}
     </AuthContext.Provider>
   );
