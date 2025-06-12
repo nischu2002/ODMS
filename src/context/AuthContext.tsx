@@ -5,9 +5,10 @@ import { User, Restaurant } from '../types';
 interface AuthContextType {
   user: User | null;
   restaurant: Restaurant | null;
-  login: (email: string, password: string, domain?: string) => Promise<boolean>;
+  login: (email: string, password: string, domain?: string, requestedRole?: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
+  createSuperAdmin: (email: string, password: string, name: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

@@ -10,7 +10,8 @@ import {
   DollarSign,
   TrendingUp,
   Clock,
-  CheckCircle
+  CheckCircle,
+  BarChart3
 } from 'lucide-react';
 
 export default function AdminDashboard() {
