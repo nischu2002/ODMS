@@ -1,10 +1,11 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Restaurant } from '../types';
 
 interface AuthContextType {
   user: User | null;
   restaurant: Restaurant | null;
-  login: (email: string, password: string, domain?: string) => Promise<boolean>;
+  login: (email: string, password: string, domain: string) => Promise<boolean>;
   loginSuperAdmin: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
@@ -14,12 +15,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Initialize proper database structure in localStorage
+const initializeDatabase = () => {
+  // Check if database is already initialized
+  if (!localStorage.getItem('odms_initialized')) {
+    // Initialize tables
+    localStorage.setItem('restaurants', JSON.stringify([]));
+    localStorage.setItem('users', JSON.stringify([]));
+    localStorage.setItem('orders', JSON.stringify([]));
+    localStorage.setItem('superAdmins', JSON.stringify([]));
+    localStorage.setItem('odms_initialized', 'true');
+    
+    console.log('Database initialized with proper structure');
+  }
+};
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Initialize database structure
+    initializeDatabase();
+    
     // Check for existing session
     const storedUser = localStorage.getItem('user');
     const storedRestaurant = localStorage.getItem('restaurant');
@@ -47,9 +66,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return !allRestaurants.find((r: any) => r.domain === domain);
   };
 
-  const isEmailUnique = (email: string) => {
+  const isEmailUniqueGlobally = (email: string) => {
+    const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
     const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
-    return !allRestaurants.find((r: any) => r.email === email);
+    
+    // Check if email exists in users table
+    const userExists = allUsers.find((u: any) => u.email === email);
+    // Check if email exists as restaurant admin email
+    const restaurantExists = allRestaurants.find((r: any) => r.email === email);
+    
+    return !userExists && !restaurantExists;
   };
 
   const registerRestaurant = async (data: any): Promise<{ success: boolean; domain?: string; error?: string }> => {
@@ -61,15 +87,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: 'Restaurant name already taken. Please choose a different name.' };
       }
       
-      // Check email uniqueness
-      if (!isEmailUnique(data.adminEmail)) {
+      // Check email uniqueness globally
+      if (!isEmailUniqueGlobally(data.adminEmail)) {
         return { success: false, error: 'Email already registered. Please use a different email.' };
       }
       
       const restaurantId = `rest_${Date.now()}`;
       const adminId = `admin_${Date.now()}`;
       
-      // Create restaurant
+      // Create restaurant entry
       const newRestaurant: Restaurant = {
         id: restaurantId,
         name: data.restaurantName,
@@ -83,26 +109,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         businessType: data.businessType
       };
       
-      // Create admin user
+      // Create admin user entry
       const adminUser = {
         id: adminId,
+        restaurantId: restaurantId,
         email: data.adminEmail,
-        password: data.adminPassword,
+        password: data.adminPassword, // In production, this should be hashed
         name: data.ownerName,
         role: 'admin',
-        restaurantId: restaurantId,
         createdAt: new Date().toISOString()
       };
       
-      // Store restaurant
+      // Store in database tables
       const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
       allRestaurants.push(newRestaurant);
       localStorage.setItem('restaurants', JSON.stringify(allRestaurants));
       
-      // Store admin user
       const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
       allUsers.push(adminUser);
       localStorage.setItem('users', JSON.stringify(allUsers));
+      
+      console.log('Restaurant and admin user created successfully:', { restaurantId, adminId, domain });
       
       return { success: true, domain };
     } catch (error) {
@@ -116,8 +143,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     
     try {
       // Check if super admin already exists
-      const existingSuperAdmins = localStorage.getItem('superAdmins');
-      const superAdmins = existingSuperAdmins ? JSON.parse(existingSuperAdmins) : [];
+      const superAdmins = JSON.parse(localStorage.getItem('superAdmins') || '[]');
       
       if (superAdmins.find((admin: any) => admin.email === email)) {
         return false; // Super admin already exists
@@ -126,7 +152,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const newSuperAdmin = {
         id: 'super-' + Date.now(),
         email,
-        password,
+        password, // In production, this should be hashed
         name,
         role: 'super_admin' as const,
         createdAt: new Date().toISOString()
@@ -189,16 +215,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const login = async (email: string, password: string, domain?: string): Promise<boolean> => {
+  const login = async (email: string, password: string, domain: string): Promise<boolean> => {
     setIsLoading(true);
     
     try {
       console.log('Restaurant login attempt:', { email, domain });
-      
-      if (!domain) {
-        console.log('Domain is required for restaurant login');
-        return false;
-      }
       
       // Find restaurant by domain
       const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
@@ -209,7 +230,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
       }
       
-      // Get all users for this restaurant
+      // Find user in users table for this restaurant
       const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
       const user = allUsers.find((u: any) => 
         u.email === email && 
@@ -233,6 +254,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.setItem('user', JSON.stringify(mockUser));
         localStorage.setItem('restaurant', JSON.stringify(restaurant));
         
+        console.log('Login successful for user:', user.role);
         return true;
       }
       

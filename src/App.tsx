@@ -49,7 +49,7 @@ const AppRoutes = () => {
       
       {/* Super Admin Routes */}
       <Route 
-        path="/super-admin" 
+        path="/admin/dashboard" 
         element={
           <ProtectedRoute allowedRoles={['super_admin']}>
             <SuperAdminDashboard />
@@ -57,7 +57,7 @@ const AppRoutes = () => {
         } 
       />
       
-      {/* Restaurant Admin Routes (changed from /admin to /restaurant-admin) */}
+      {/* Restaurant Admin Routes */}
       <Route 
         path="/restaurant-admin" 
         element={
@@ -69,7 +69,7 @@ const AppRoutes = () => {
       
       {/* Restaurant Staff Routes */}
       <Route 
-        path="/restaurant" 
+        path="/staff-dashboard" 
         element={
           <ProtectedRoute allowedRoles={['restaurant_staff']}>
             <RestaurantDashboard />
@@ -79,7 +79,7 @@ const AppRoutes = () => {
       
       {/* Rider Routes */}
       <Route 
-        path="/rider" 
+        path="/rider-dashboard" 
         element={
           <ProtectedRoute allowedRoles={['rider']}>
             <RiderDashboard />
@@ -87,15 +87,15 @@ const AppRoutes = () => {
         } 
       />
       
-      {/* Redirect based on user role */}
+      {/* Main Dashboard Route - Redirects based on user role */}
       <Route 
         path="/dashboard" 
         element={
           user ? (
-            user.role === 'super_admin' ? <Navigate to="/super-admin" replace /> :
+            user.role === 'super_admin' ? <Navigate to="/admin/dashboard" replace /> :
             user.role === 'admin' ? <Navigate to="/restaurant-admin" replace /> :
-            user.role === 'restaurant_staff' ? <Navigate to="/restaurant" replace /> :
-            user.role === 'rider' ? <Navigate to="/rider" replace /> :
+            user.role === 'restaurant_staff' ? <Navigate to="/staff-dashboard" replace /> :
+            user.role === 'rider' ? <Navigate to="/rider-dashboard" replace /> :
             <Navigate to="/login" replace />
           ) : (
             <Navigate to="/login" replace />

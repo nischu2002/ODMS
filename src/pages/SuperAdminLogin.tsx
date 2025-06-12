@@ -46,7 +46,7 @@ export default function SuperAdminLogin() {
       }
       
       if (success) {
-        navigate('/super-admin');
+        navigate('/admin/dashboard');
       } else {
         toast({
           title: isSignup ? "Signup failed" : "Login failed",
@@ -62,14 +62,6 @@ export default function SuperAdminLogin() {
       });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fillDemoCredentials = () => {
-    setEmail('superadmin@odms.com');
-    setPassword('superadmin123');
-    if (isSignup) {
-      setName('Super Administrator');
     }
   };
 
@@ -137,15 +129,6 @@ export default function SuperAdminLogin() {
               ) : (
                 isSignup ? 'Create Super Admin Account' : 'Sign In'
               )}
-            </Button>
-            
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={fillDemoCredentials}
-            >
-              Use Demo Credentials
             </Button>
           </form>
           
