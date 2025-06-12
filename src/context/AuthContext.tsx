@@ -85,6 +85,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
+      console.log('Login attempt:', { email, password, domain, requestedRole });
+      
       // Handle super admin login
       if (requestedRole === 'super_admin') {
         const superAdmins = JSON.parse(localStorage.getItem('superAdmins') || '[]');
@@ -106,38 +108,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
       }
       
-      // Check if this is a registered restaurant admin
+      // Check registration data first for restaurant admin
       const registrationData = localStorage.getItem('registrationData');
-      const restaurantAdmins = JSON.parse(localStorage.getItem('restaurantAdmins') || '[]');
-      
       let mockUser: User;
       let mockRestaurant: Restaurant | null = null;
       
-      // Check restaurant admins created by super admin
-      const restaurantAdmin = restaurantAdmins.find((admin: any) => admin.email === email && admin.password === password);
-      if (restaurantAdmin) {
-        const restaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
-        const restaurant = restaurants.find((r: any) => r.id === restaurantAdmin.restaurantId);
-        
-        if (restaurant) {
-          mockUser = {
-            id: restaurantAdmin.id,
-            email: restaurantAdmin.email,
-            name: restaurantAdmin.name,
-            role: 'admin',
-            restaurantId: restaurant.id,
-            createdAt: restaurantAdmin.createdAt
-          };
-          
-          mockRestaurant = restaurant;
-        } else {
-          return false;
-        }
-      } else if (registrationData) {
+      if (registrationData) {
         const regData = JSON.parse(registrationData);
+        console.log('Registration data found:', regData);
         
         // Check if login credentials match the registered admin
         if (email === regData.adminEmail && password === regData.adminPassword) {
+          console.log('Credentials match registration data');
+          
           mockUser = {
             id: 'admin-' + regData.domain,
             email: regData.adminEmail,
@@ -159,98 +142,91 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             isActive: true,
             businessType: regData.businessType
           };
-        } else {
-          // Default demo users for testing
-          if (email.includes('staff')) {
-            mockUser = {
-              id: '2',
-              email,
-              name: 'Restaurant Staff',
-              role: 'restaurant_staff',
-              restaurantId: domain || 'demo-restaurant',
-              createdAt: new Date().toISOString()
-            };
-            mockRestaurant = {
-              id: domain || 'demo-restaurant',
-              name: domain || 'Demo Restaurant',
-              domain: domain || 'demo-restaurant',
-              address: '123 Demo Street',
-              phone: '+1234567890',
-              email: 'contact@demo.com',
-              adminId: '1',
-              createdAt: new Date().toISOString(),
-              isActive: true
-            };
-          } else if (email.includes('rider')) {
-            mockUser = {
-              id: '3',
-              email,
-              name: 'Delivery Rider',
-              role: 'rider',
-              restaurantId: domain || 'demo-restaurant',
-              createdAt: new Date().toISOString()
-            };
-            mockRestaurant = {
-              id: domain || 'demo-restaurant',
-              name: domain || 'Demo Restaurant',
-              domain: domain || 'demo-restaurant',
-              address: '123 Demo Street',
-              phone: '+1234567890',
-              email: 'contact@demo.com',
-              adminId: '1',
-              createdAt: new Date().toISOString(),
-              isActive: true
-            };
-          } else {
-            // Invalid credentials
-            return false;
-          }
+          
+          setUser(mockUser);
+          setRestaurant(mockRestaurant);
+          
+          localStorage.setItem('user', JSON.stringify(mockUser));
+          localStorage.setItem('restaurant', JSON.stringify(mockRestaurant));
+          
+          return true;
         }
+      }
+      
+      // Check restaurant admins created by super admin
+      const restaurantAdmins = JSON.parse(localStorage.getItem('restaurantAdmins') || '[]');
+      const restaurantAdmin = restaurantAdmins.find((admin: any) => admin.email === email && admin.password === password);
+      
+      if (restaurantAdmin) {
+        const restaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
+        const restaurant = restaurants.find((r: any) => r.id === restaurantAdmin.restaurantId);
+        
+        if (restaurant) {
+          mockUser = {
+            id: restaurantAdmin.id,
+            email: restaurantAdmin.email,
+            name: restaurantAdmin.name,
+            role: 'admin',
+            restaurantId: restaurant.id,
+            createdAt: restaurantAdmin.createdAt
+          };
+          
+          mockRestaurant = restaurant;
+          
+          setUser(mockUser);
+          setRestaurant(mockRestaurant);
+          
+          localStorage.setItem('user', JSON.stringify(mockUser));
+          localStorage.setItem('restaurant', JSON.stringify(mockRestaurant));
+          
+          return true;
+        }
+      }
+      
+      // Handle staff and rider logins
+      if (email.includes('staff')) {
+        mockUser = {
+          id: '2',
+          email,
+          name: 'Restaurant Staff',
+          role: 'restaurant_staff',
+          restaurantId: domain || 'demo-restaurant',
+          createdAt: new Date().toISOString()
+        };
+        mockRestaurant = {
+          id: domain || 'demo-restaurant',
+          name: domain || 'Demo Restaurant',
+          domain: domain || 'demo-restaurant',
+          address: '123 Demo Street',
+          phone: '+1234567890',
+          email: 'contact@demo.com',
+          adminId: '1',
+          createdAt: new Date().toISOString(),
+          isActive: true
+        };
+      } else if (email.includes('rider')) {
+        mockUser = {
+          id: '3',
+          email,
+          name: 'Delivery Rider',
+          role: 'rider',
+          restaurantId: domain || 'demo-restaurant',
+          createdAt: new Date().toISOString()
+        };
+        mockRestaurant = {
+          id: domain || 'demo-restaurant',
+          name: domain || 'Demo Restaurant',
+          domain: domain || 'demo-restaurant',
+          address: '123 Demo Street',
+          phone: '+1234567890',
+          email: 'contact@demo.com',
+          adminId: '1',
+          createdAt: new Date().toISOString(),
+          isActive: true
+        };
       } else {
-        // Default demo users when no registration data exists
-        if (email.includes('staff')) {
-          mockUser = {
-            id: '2',
-            email,
-            name: 'Restaurant Staff',
-            role: 'restaurant_staff',
-            restaurantId: domain || 'demo-restaurant',
-            createdAt: new Date().toISOString()
-          };
-          mockRestaurant = {
-            id: domain || 'demo-restaurant',
-            name: domain || 'Demo Restaurant',
-            domain: domain || 'demo-restaurant',
-            address: '123 Demo Street',
-            phone: '+1234567890',
-            email: 'contact@demo.com',
-            adminId: '1',
-            createdAt: new Date().toISOString(),
-            isActive: true
-          };
-        } else if (email.includes('rider')) {
-          mockUser = {
-            id: '3',
-            email,
-            name: 'Delivery Rider',
-            role: 'rider',
-            restaurantId: domain || 'demo-restaurant',
-            createdAt: new Date().toISOString()
-          };
-          mockRestaurant = {
-            id: domain || 'demo-restaurant',
-            name: domain || 'Demo Restaurant',
-            domain: domain || 'demo-restaurant',
-            address: '123 Demo Street',
-            phone: '+1234567890',
-            email: 'contact@demo.com',
-            adminId: '1',
-            createdAt: new Date().toISOString(),
-            isActive: true
-          };
-        } else {
-          return false;
-        }
+        console.log('No matching credentials found');
+        return false;
       }
       
       setUser(mockUser);
