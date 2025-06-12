@@ -16,7 +16,7 @@ export default function SuperAdminLogin() {
   const [isSignup, setIsSignup] = useState(false);
   const [name, setName] = useState('');
   
-  const { login, createSuperAdmin } = useAuth();
+  const { loginSuperAdmin, createSuperAdmin } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -36,7 +36,7 @@ export default function SuperAdminLogin() {
           });
         }
       } else {
-        success = await login(email, password, undefined, 'super_admin');
+        success = await loginSuperAdmin(email, password);
         if (success) {
           toast({
             title: "Login successful",

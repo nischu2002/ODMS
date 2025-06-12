@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Restaurant } from '../types';
 
@@ -6,6 +5,7 @@ interface AuthContextType {
   user: User | null;
   restaurant: Restaurant | null;
   login: (email: string, password: string, domain?: string) => Promise<boolean>;
+  loginSuperAdmin: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
   createSuperAdmin: (email: string, password: string, name: string) => Promise<boolean>;
@@ -156,34 +156,51 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const loginSuperAdmin = async (email: string, password: string): Promise<boolean> => {
+    setIsLoading(true);
+    
+    try {
+      console.log('Super admin login attempt:', { email });
+      
+      const superAdmins = JSON.parse(localStorage.getItem('superAdmins') || '[]');
+      const superAdmin = superAdmins.find((admin: any) => admin.email === email && admin.password === password);
+      
+      if (superAdmin) {
+        const mockUser: User = {
+          id: superAdmin.id,
+          email: superAdmin.email,
+          name: superAdmin.name,
+          role: 'super_admin',
+          createdAt: superAdmin.createdAt
+        };
+        
+        setUser(mockUser);
+        localStorage.setItem('user', JSON.stringify(mockUser));
+        return true;
+      }
+      
+      console.log('Super admin not found or invalid credentials');
+      return false;
+    } catch (error) {
+      console.error('Super admin login failed:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const login = async (email: string, password: string, domain?: string): Promise<boolean> => {
     setIsLoading(true);
     
     try {
-      console.log('Login attempt:', { email, domain });
+      console.log('Restaurant login attempt:', { email, domain });
       
-      // Super admin login (no domain required)
       if (!domain) {
-        const superAdmins = JSON.parse(localStorage.getItem('superAdmins') || '[]');
-        const superAdmin = superAdmins.find((admin: any) => admin.email === email && admin.password === password);
-        
-        if (superAdmin) {
-          const mockUser: User = {
-            id: superAdmin.id,
-            email: superAdmin.email,
-            name: superAdmin.name,
-            role: 'super_admin',
-            createdAt: superAdmin.createdAt
-          };
-          
-          setUser(mockUser);
-          localStorage.setItem('user', JSON.stringify(mockUser));
-          return true;
-        }
+        console.log('Domain is required for restaurant login');
         return false;
       }
       
-      // Restaurant-based login (domain required)
+      // Find restaurant by domain
       const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
       const restaurant = allRestaurants.find((r: any) => r.domain === domain);
       
@@ -241,6 +258,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       user, 
       restaurant, 
       login, 
+      loginSuperAdmin,
       logout, 
       isLoading, 
       createSuperAdmin,
