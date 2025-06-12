@@ -32,19 +32,107 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string, domain?: string): Promise<boolean> => {
+  const createSuperAdmin = async (email: string, password: string, name: string): Promise<boolean> => {
+    setIsLoading(true);
+    
+    try {
+      // Check if super admin already exists
+      const existingSuperAdmins = localStorage.getItem('superAdmins');
+      const superAdmins = existingSuperAdmins ? JSON.parse(existingSuperAdmins) : [];
+      
+      if (superAdmins.find((admin: any) => admin.email === email)) {
+        return false; // Super admin already exists
+      }
+      
+      const newSuperAdmin = {
+        id: 'super-' + Date.now(),
+        email,
+        password,
+        name,
+        role: 'super_admin' as const,
+        createdAt: new Date().toISOString()
+      };
+      
+      superAdmins.push(newSuperAdmin);
+      localStorage.setItem('superAdmins', JSON.stringify(superAdmins));
+      
+      // Auto login the new super admin
+      const mockUser: User = {
+        id: newSuperAdmin.id,
+        email: newSuperAdmin.email,
+        name: newSuperAdmin.name,
+        role: 'super_admin',
+        createdAt: newSuperAdmin.createdAt
+      };
+      
+      setUser(mockUser);
+      localStorage.setItem('user', JSON.stringify(mockUser));
+      
+      return true;
+    } catch (error) {
+      console.error('Super admin creation failed:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const login = async (email: string, password: string, domain?: string, requestedRole?: string): Promise<boolean> => {
     setIsLoading(true);
     
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
+      // Handle super admin login
+      if (requestedRole === 'super_admin') {
+        const superAdmins = JSON.parse(localStorage.getItem('superAdmins') || '[]');
+        const superAdmin = superAdmins.find((admin: any) => admin.email === email && admin.password === password);
+        
+        if (superAdmin) {
+          const mockUser: User = {
+            id: superAdmin.id,
+            email: superAdmin.email,
+            name: superAdmin.name,
+            role: 'super_admin',
+            createdAt: superAdmin.createdAt
+          };
+          
+          setUser(mockUser);
+          localStorage.setItem('user', JSON.stringify(mockUser));
+          return true;
+        }
+        return false;
+      }
+      
       // Check if this is a registered restaurant admin
       const registrationData = localStorage.getItem('registrationData');
+      const restaurantAdmins = JSON.parse(localStorage.getItem('restaurantAdmins') || '[]');
+      
       let mockUser: User;
       let mockRestaurant: Restaurant | null = null;
       
-      if (registrationData) {
+      // Check restaurant admins created by super admin
+      const restaurantAdmin = restaurantAdmins.find((admin: any) => admin.email === email && admin.password === password);
+      if (restaurantAdmin) {
+        const restaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
+        const restaurant = restaurants.find((r: any) => r.id === restaurantAdmin.restaurantId);
+        
+        if (restaurant) {
+          mockUser = {
+            id: restaurantAdmin.id,
+            email: restaurantAdmin.email,
+            name: restaurantAdmin.name,
+            role: 'admin',
+            restaurantId: restaurant.id,
+            createdAt: restaurantAdmin.createdAt
+          };
+          
+          mockRestaurant = restaurant;
+        } else {
+          return false;
+        }
+      } else if (registrationData) {
         const regData = JSON.parse(registrationData);
         
         // Check if login credentials match the registered admin
@@ -53,7 +141,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             id: 'admin-' + regData.domain,
             email: regData.adminEmail,
             name: regData.ownerName,
-            role: 'restaurant_staff',
+            role: 'admin',
             restaurantId: regData.domain,
             createdAt: new Date().toISOString()
           };
@@ -72,15 +160,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           };
         } else {
           // Default demo users for testing
-          if (email.includes('admin')) {
-            mockUser = {
-              id: '1',
-              email,
-              name: 'System Admin',
-              role: 'admin',
-              createdAt: new Date().toISOString()
-            };
-          } else if (email.includes('staff')) {
+          if (email.includes('staff')) {
             mockUser = {
               id: '2',
               email,
@@ -127,15 +207,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } else {
         // Default demo users when no registration data exists
-        if (email.includes('admin')) {
-          mockUser = {
-            id: '1',
-            email,
-            name: 'System Admin',
-            role: 'admin',
-            createdAt: new Date().toISOString()
-          };
-        } else if (email.includes('staff')) {
+        if (email.includes('staff')) {
           mockUser = {
             id: '2',
             email,
@@ -205,7 +277,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, restaurant, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, restaurant, login, logout, isLoading, createSuperAdmin }}>
       {children}
     </AuthContext.Provider>
   );

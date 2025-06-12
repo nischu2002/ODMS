@@ -9,6 +9,8 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import RestaurantSignup from "./pages/RestaurantSignup";
 import DomainSetup from "./pages/DomainSetup";
+import SuperAdminLogin from "./pages/SuperAdminLogin";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import RestaurantDashboard from "./pages/RestaurantDashboard";
 import RiderDashboard from "./pages/RiderDashboard";
@@ -43,10 +45,21 @@ const AppRoutes = () => {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<RestaurantSignup />} />
       <Route path="/setup/:domain" element={<DomainSetup />} />
+      <Route path="/admin" element={<SuperAdminLogin />} />
       
-      {/* Admin Routes */}
+      {/* Super Admin Routes */}
       <Route 
-        path="/admin" 
+        path="/super-admin" 
+        element={
+          <ProtectedRoute allowedRoles={['super_admin']}>
+            <SuperAdminDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* Restaurant Admin Routes (changed from /admin to /restaurant-admin) */}
+      <Route 
+        path="/restaurant-admin" 
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminDashboard />
@@ -79,7 +92,8 @@ const AppRoutes = () => {
         path="/dashboard" 
         element={
           user ? (
-            user.role === 'admin' ? <Navigate to="/admin" replace /> :
+            user.role === 'super_admin' ? <Navigate to="/super-admin" replace /> :
+            user.role === 'admin' ? <Navigate to="/restaurant-admin" replace /> :
             user.role === 'restaurant_staff' ? <Navigate to="/restaurant" replace /> :
             user.role === 'rider' ? <Navigate to="/rider" replace /> :
             <Navigate to="/login" replace />

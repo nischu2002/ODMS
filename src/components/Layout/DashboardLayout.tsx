@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { AdminSidebar } from './AdminSidebar';
 import { RestaurantSidebar } from './RestaurantSidebar';
 import { RiderSidebar } from './RiderSidebar';
+import { SuperAdminSidebar } from './SuperAdminSidebar';
 import { DashboardHeader } from './DashboardHeader';
 
 interface DashboardLayoutProps {
@@ -15,6 +16,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   const getSidebar = () => {
     switch (user?.role) {
+      case 'super_admin':
+        return <SuperAdminSidebar />;
       case 'admin':
         return <AdminSidebar />;
       case 'restaurant_staff':

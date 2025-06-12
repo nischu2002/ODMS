@@ -3,32 +3,30 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
+  Store, 
   Users, 
-  Truck, 
-  ShoppingBag, 
   BarChart3, 
   Settings,
-  Store
+  Shield
 } from 'lucide-react';
 
 const navigation = [
-  { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-  { name: 'Restaurant Staff', href: '/admin/staff', icon: Users },
-  { name: 'Orders', href: '/admin/orders', icon: ShoppingBag },
-  { name: 'Delivery Riders', href: '/admin/riders', icon: Truck },
-  { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-  { name: 'Restaurant Settings', href: '/admin/settings', icon: Settings },
+  { name: 'Dashboard', href: '/super-admin', icon: LayoutDashboard },
+  { name: 'Restaurants', href: '/super-admin/restaurants', icon: Store },
+  { name: 'Restaurant Admins', href: '/super-admin/admins', icon: Users },
+  { name: 'System Analytics', href: '/super-admin/analytics', icon: BarChart3 },
+  { name: 'System Settings', href: '/super-admin/settings', icon: Settings },
 ];
 
-export const AdminSidebar = () => {
+export const SuperAdminSidebar = () => {
   return (
     <div className="w-64 bg-white border-r border-gray-200">
       <div className="p-6">
         <div className="flex items-center space-x-2">
-          <Store className="h-8 w-8 text-blue-600" />
+          <Shield className="h-8 w-8 text-red-600" />
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Restaurant Admin</h2>
-            <p className="text-sm text-gray-600">Management</p>
+            <h2 className="text-lg font-semibold text-gray-900">Super Admin</h2>
+            <p className="text-sm text-gray-600">System Control</p>
           </div>
         </div>
       </div>
@@ -41,7 +39,7 @@ export const AdminSidebar = () => {
             className={({ isActive }) =>
               `flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                 isActive
-                  ? 'bg-blue-100 text-blue-700'
+                  ? 'bg-red-100 text-red-700'
                   : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
               }`
             }

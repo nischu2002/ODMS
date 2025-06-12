@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -26,7 +27,7 @@ export default function Login() {
     const urlDomain = searchParams.get('domain');
     if (urlDomain) {
       setDomain(urlDomain);
-      setActiveTab('restaurant'); // Default to restaurant tab for domain-specific login
+      setActiveTab('admin'); // Default to admin tab for domain-specific login
     }
   }, [searchParams]);
 
@@ -45,7 +46,7 @@ export default function Login() {
         
         // Navigate based on role
         if (activeTab === 'admin') {
-          navigate('/admin');
+          navigate('/restaurant-admin');
         } else if (activeTab === 'restaurant') {
           navigate('/restaurant');
         } else {
@@ -72,7 +73,7 @@ export default function Login() {
   const getDemoCredentials = (role: string) => {
     switch (role) {
       case 'admin':
-        return { email: 'admin@odms.com', password: 'admin123' };
+        return { email: 'admin@restaurant.com', password: 'admin123' };
       case 'restaurant':
         return { email: 'staff@restaurant.com', password: 'staff123' };
       case 'rider':
@@ -104,9 +105,9 @@ export default function Login() {
             </>
           ) : (
             <>
-              <CardTitle className="text-2xl font-bold">ODMS Login</CardTitle>
+              <CardTitle className="text-2xl font-bold">ODMS Restaurant Login</CardTitle>
               <CardDescription>
-                Order & Delivery Management System
+                Restaurant Order & Delivery Management
               </CardDescription>
             </>
           )}
@@ -130,19 +131,17 @@ export default function Login() {
             </TabsList>
             
             <form onSubmit={handleSubmit} className="space-y-4 mt-6">
-              {activeTab !== 'admin' && (
-                <div className="space-y-2">
-                  <Label htmlFor="domain">Restaurant Domain</Label>
-                  <Input
-                    id="domain"
-                    type="text"
-                    placeholder="restaurant-domain"
-                    value={domain}
-                    onChange={(e) => setDomain(e.target.value)}
-                    required={activeTab !== 'admin'}
-                  />
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="domain">Restaurant Domain</Label>
+                <Input
+                  id="domain"
+                  type="text"
+                  placeholder="restaurant-domain"
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value)}
+                  required
+                />
+              </div>
               
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -191,10 +190,10 @@ export default function Login() {
             
             <TabsContent value="admin" className="mt-4">
               <div className="text-sm text-gray-600 space-y-1">
-                <p><strong>Admin Access:</strong></p>
-                <p>• Manage all restaurants</p>
-                <p>• View system-wide analytics</p>
-                <p>• Create and manage users</p>
+                <p><strong>Restaurant Admin Access:</strong></p>
+                <p>• Manage restaurant operations</p>
+                <p>• View restaurant analytics</p>
+                <p>• Manage staff and riders</p>
               </div>
             </TabsContent>
             
@@ -217,15 +216,13 @@ export default function Login() {
             </TabsContent>
           </Tabs>
 
-          {!domain && (
-            <div className="mt-6 text-center text-sm text-gray-600">
-              <p>Don't have an account? 
-                <Button variant="link" onClick={() => navigate('/signup')} className="p-0 ml-1">
-                  Create Restaurant Account
-                </Button>
-              </p>
-            </div>
-          )}
+          <div className="mt-6 text-center text-sm text-gray-600">
+            <p>Don't have an account? 
+              <Button variant="link" onClick={() => navigate('/signup')} className="p-0 ml-1">
+                Create Restaurant Account
+              </Button>
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
