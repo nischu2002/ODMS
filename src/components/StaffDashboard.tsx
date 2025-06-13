@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -16,7 +15,7 @@ export const StaffDashboard = () => {
     customerName: '',
     customerPhone: '',
     customerAddress: '',
-    items: [{ name: '', quantity: 1, price: 0 }] as OrderItem[]
+    items: [{ id: 'temp-1', name: '', quantity: 1, price: 0 }] as OrderItem[]
   });
   const { restaurant, user } = useAuth();
   const { toast } = useToast();
@@ -51,7 +50,12 @@ export const StaffDashboard = () => {
       customerName: newOrder.customerName,
       customerPhone: newOrder.customerPhone,
       customerAddress: newOrder.customerAddress,
-      items: newOrder.items.map((item, index) => ({ ...item, id: `item-${index}` })),
+      items: newOrder.items.map((item, index) => ({ 
+        id: `item-${Date.now()}-${index}`, 
+        name: item.name, 
+        quantity: item.quantity, 
+        price: item.price 
+      })),
       totalAmount,
       status: 'pending',
       createdAt: new Date().toISOString(),
@@ -63,7 +67,7 @@ export const StaffDashboard = () => {
       customerName: '',
       customerPhone: '',
       customerAddress: '',
-      items: [{ name: '', quantity: 1, price: 0 }]
+      items: [{ id: 'temp-1', name: '', quantity: 1, price: 0 }]
     });
     setShowNewOrder(false);
     toast({ title: "Order created successfully" });
@@ -83,20 +87,21 @@ export const StaffDashboard = () => {
 
   const assignRider = (orderId: string, riderId: string) => {
     const updatedOrders = orders.map(order => 
-      order.id === orderId ? { ...order, riderId, status: 'assigned' } : order
+      order.id === orderId ? { ...order, riderId, status: 'assigned' as Order['status'] } : order
     );
     saveOrders(updatedOrders);
     toast({ title: "Rider assigned successfully" });
   };
 
   const addOrderItem = () => {
+    const newItemId = `temp-${Date.now()}`;
     setNewOrder({
       ...newOrder,
-      items: [...newOrder.items, { name: '', quantity: 1, price: 0 }]
+      items: [...newOrder.items, { id: newItemId, name: '', quantity: 1, price: 0 }]
     });
   };
 
-  const updateOrderItem = (index: number, field: string, value: any) => {
+  const updateOrderItem = (index: number, field: keyof OrderItem, value: any) => {
     const updatedItems = newOrder.items.map((item, i) => 
       i === index ? { ...item, [field]: value } : item
     );
@@ -205,7 +210,7 @@ export const StaffDashboard = () => {
               <div>
                 <Label>Order Items</Label>
                 {newOrder.items.map((item, index) => (
-                  <div key={index} className="grid grid-cols-4 gap-2 mt-2">
+                  <div key={item.id} className="grid grid-cols-4 gap-2 mt-2">
                     <Input
                       placeholder="Item name"
                       value={item.name}
