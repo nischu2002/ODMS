@@ -16,7 +16,9 @@ export const RiderManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    phone: ''
+    phone: '',
+    password: '',
+    confirmPassword: ''
   });
   const { restaurant } = useAuth();
   const { toast } = useToast();
@@ -45,10 +47,29 @@ export const RiderManagement = () => {
     
     if (!restaurant) return;
 
+    // Validate passwords match for new riders
+    if (!editingRider && formData.password !== formData.confirmPassword) {
+      toast({ 
+        title: "Password mismatch", 
+        description: "Passwords do not match",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!editingRider && formData.password.length < 6) {
+      toast({ 
+        title: "Password too short", 
+        description: "Password must be at least 6 characters",
+        variant: "destructive" 
+      });
+      return;
+    }
+
     if (editingRider) {
       const updatedRiders = riders.map(r => 
         r.id === editingRider.id 
-          ? { ...editingRider, ...formData }
+          ? { ...editingRider, name: formData.name, email: formData.email, phone: formData.phone }
           : r
       );
       saveRiders(updatedRiders);
@@ -57,18 +78,35 @@ export const RiderManagement = () => {
     } else {
       const newRider: DeliveryRider = {
         id: 'rider-' + Date.now(),
-        ...formData,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
         restaurantId: restaurant.id,
         isActive: true,
         isOnline: false,
         totalDeliveries: 0,
         rating: 5.0
       };
+
+      // Add to users table for login
+      const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
+      const newUser = {
+        id: newRider.id,
+        restaurantId: restaurant.id,
+        email: formData.email,
+        password: formData.password, // In production, this should be hashed
+        name: formData.name,
+        role: 'rider',
+        createdAt: new Date().toISOString()
+      };
+      allUsers.push(newUser);
+      localStorage.setItem('users', JSON.stringify(allUsers));
+
       saveRiders([...riders, newRider]);
       toast({ title: "Rider added successfully" });
     }
     
-    setFormData({ name: '', email: '', phone: '' });
+    setFormData({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
     setShowAddForm(false);
   };
 
@@ -77,7 +115,9 @@ export const RiderManagement = () => {
     setFormData({
       name: rider.name,
       email: rider.email,
-      phone: rider.phone
+      phone: rider.phone,
+      password: '',
+      confirmPassword: ''
     });
     setShowAddForm(true);
   };
@@ -85,6 +125,12 @@ export const RiderManagement = () => {
   const handleDelete = (riderId: string) => {
     const updatedRiders = riders.filter(r => r.id !== riderId);
     saveRiders(updatedRiders);
+    
+    // Remove from users table
+    const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
+    const updatedUsers = allUsers.filter((u: any) => u.id !== riderId);
+    localStorage.setItem('users', JSON.stringify(updatedUsers));
+    
     toast({ title: "Rider removed" });
   };
 
@@ -121,7 +167,7 @@ export const RiderManagement = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="name">Full Name</Label>
                   <Input
@@ -150,6 +196,32 @@ export const RiderManagement = () => {
                     required
                   />
                 </div>
+                {!editingRider && (
+                  <>
+                    <div>
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        value={formData.confirmPassword}
+                        onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button type="submit">
@@ -161,7 +233,7 @@ export const RiderManagement = () => {
                   onClick={() => {
                     setShowAddForm(false);
                     setEditingRider(null);
-                    setFormData({ name: '', email: '', phone: '' });
+                    setFormData({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
                   }}
                 >
                   Cancel

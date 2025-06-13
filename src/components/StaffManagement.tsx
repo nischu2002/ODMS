@@ -27,7 +27,9 @@ export const StaffManagement = () => {
     name: '',
     email: '',
     phone: '',
-    role: 'kitchen_staff'
+    role: 'kitchen_staff',
+    password: '',
+    confirmPassword: ''
   });
   const { restaurant } = useAuth();
   const { toast } = useToast();
@@ -56,10 +58,29 @@ export const StaffManagement = () => {
     
     if (!restaurant) return;
 
+    // Validate passwords match for new staff
+    if (!editingStaff && formData.password !== formData.confirmPassword) {
+      toast({ 
+        title: "Password mismatch", 
+        description: "Passwords do not match",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!editingStaff && formData.password.length < 6) {
+      toast({ 
+        title: "Password too short", 
+        description: "Password must be at least 6 characters",
+        variant: "destructive" 
+      });
+      return;
+    }
+
     if (editingStaff) {
       const updatedStaff = staff.map(s => 
         s.id === editingStaff.id 
-          ? { ...editingStaff, ...formData }
+          ? { ...editingStaff, name: formData.name, email: formData.email, phone: formData.phone, role: formData.role }
           : s
       );
       saveStaff(updatedStaff);
@@ -68,16 +89,34 @@ export const StaffManagement = () => {
     } else {
       const newStaff: Staff = {
         id: 'staff-' + Date.now(),
-        ...formData,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        role: formData.role,
         restaurantId: restaurant.id,
         isActive: true,
         createdAt: new Date().toISOString()
       };
+
+      // Add to users table for login
+      const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
+      const newUser = {
+        id: newStaff.id,
+        restaurantId: restaurant.id,
+        email: formData.email,
+        password: formData.password, // In production, this should be hashed
+        name: formData.name,
+        role: 'restaurant_staff',
+        createdAt: new Date().toISOString()
+      };
+      allUsers.push(newUser);
+      localStorage.setItem('users', JSON.stringify(allUsers));
+
       saveStaff([...staff, newStaff]);
       toast({ title: "Staff member added successfully" });
     }
     
-    setFormData({ name: '', email: '', phone: '', role: 'kitchen_staff' });
+    setFormData({ name: '', email: '', phone: '', role: 'kitchen_staff', password: '', confirmPassword: '' });
     setShowAddForm(false);
   };
 
@@ -87,7 +126,9 @@ export const StaffManagement = () => {
       name: staffMember.name,
       email: staffMember.email,
       phone: staffMember.phone,
-      role: staffMember.role
+      role: staffMember.role,
+      password: '',
+      confirmPassword: ''
     });
     setShowAddForm(true);
   };
@@ -95,6 +136,12 @@ export const StaffManagement = () => {
   const handleDelete = (staffId: string) => {
     const updatedStaff = staff.filter(s => s.id !== staffId);
     saveStaff(updatedStaff);
+    
+    // Remove from users table
+    const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
+    const updatedUsers = allUsers.filter((u: any) => u.id !== staffId);
+    localStorage.setItem('users', JSON.stringify(updatedUsers));
+    
     toast({ title: "Staff member removed" });
   };
 
@@ -166,6 +213,32 @@ export const StaffManagement = () => {
                     <option value="waiter">Waiter</option>
                   </select>
                 </div>
+                {!editingStaff && (
+                  <>
+                    <div>
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        value={formData.confirmPassword}
+                        onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button type="submit">
@@ -177,7 +250,7 @@ export const StaffManagement = () => {
                   onClick={() => {
                     setShowAddForm(false);
                     setEditingStaff(null);
-                    setFormData({ name: '', email: '', phone: '', role: 'kitchen_staff' });
+                    setFormData({ name: '', email: '', phone: '', role: 'kitchen_staff', password: '', confirmPassword: '' });
                   }}
                 >
                   Cancel
