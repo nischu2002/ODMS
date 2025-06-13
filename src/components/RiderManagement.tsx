@@ -7,6 +7,7 @@ import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit, Trash2, Truck, MapPin } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { supabase } from '../integrations/supabase/client';
 import { DeliveryRider } from '../types';
 
 export const RiderManagement = () => {
@@ -24,25 +25,47 @@ export const RiderManagement = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadRiders();
+    if (restaurant) {
+      loadRiders();
+    }
   }, [restaurant]);
 
-  const loadRiders = () => {
+  const loadRiders = async () => {
     if (!restaurant) return;
     
-    const existingRiders = localStorage.getItem(`riders_${restaurant.id}`);
-    if (existingRiders) {
-      setRiders(JSON.parse(existingRiders));
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('restaurant_id', restaurant.id)
+        .eq('role', 'rider');
+
+      if (error) throw error;
+
+      const formattedRiders: DeliveryRider[] = data?.map(user => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        restaurantId: user.restaurant_id!,
+        isActive: user.is_active,
+        isOnline: false, // This would come from a separate status tracking
+        totalDeliveries: 0, // This would be calculated from orders
+        rating: 5.0
+      })) || [];
+
+      setRiders(formattedRiders);
+    } catch (error) {
+      console.error('Error loading riders:', error);
+      toast({ 
+        title: "Error loading riders", 
+        description: "Failed to load delivery riders",
+        variant: "destructive" 
+      });
     }
   };
 
-  const saveRiders = (ridersList: DeliveryRider[]) => {
-    if (!restaurant) return;
-    localStorage.setItem(`riders_${restaurant.id}`, JSON.stringify(ridersList));
-    setRiders(ridersList);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!restaurant) return;
@@ -66,48 +89,66 @@ export const RiderManagement = () => {
       return;
     }
 
-    if (editingRider) {
-      const updatedRiders = riders.map(r => 
-        r.id === editingRider.id 
-          ? { ...editingRider, name: formData.name, email: formData.email, phone: formData.phone }
-          : r
-      );
-      saveRiders(updatedRiders);
-      toast({ title: "Rider updated successfully" });
-      setEditingRider(null);
-    } else {
-      const newRider: DeliveryRider = {
-        id: 'rider-' + Date.now(),
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        restaurantId: restaurant.id,
-        isActive: true,
-        isOnline: false,
-        totalDeliveries: 0,
-        rating: 5.0
-      };
+    try {
+      if (editingRider) {
+        // Update existing rider
+        const { error } = await supabase
+          .from('users')
+          .update({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone || null
+          })
+          .eq('id', editingRider.id);
 
-      // Add to users table for login
-      const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
-      const newUser = {
-        id: newRider.id,
-        restaurantId: restaurant.id,
-        email: formData.email,
-        password: formData.password, // In production, this should be hashed
-        name: formData.name,
-        role: 'rider',
-        createdAt: new Date().toISOString()
-      };
-      allUsers.push(newUser);
-      localStorage.setItem('users', JSON.stringify(allUsers));
+        if (error) throw error;
 
-      saveRiders([...riders, newRider]);
-      toast({ title: "Rider added successfully" });
+        toast({ title: "Rider updated successfully" });
+        setEditingRider(null);
+      } else {
+        // Create new rider
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/rider-dashboard`
+          }
+        });
+
+        if (authError) throw authError;
+
+        if (!authData.user) {
+          throw new Error('Failed to create user account');
+        }
+
+        // Create user profile
+        const { error: profileError } = await supabase
+          .from('users')
+          .insert({
+            id: authData.user.id,
+            restaurant_id: restaurant.id,
+            email: formData.email,
+            name: formData.name,
+            role: 'rider',
+            phone: formData.phone || null
+          });
+
+        if (profileError) throw profileError;
+
+        toast({ title: "Rider added successfully" });
+      }
+      
+      setFormData({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
+      setShowAddForm(false);
+      await loadRiders();
+    } catch (error: any) {
+      console.error('Error managing rider:', error);
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to manage rider",
+        variant: "destructive" 
+      });
     }
-    
-    setFormData({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
-    setShowAddForm(false);
   };
 
   const handleEdit = (rider: DeliveryRider) => {
@@ -122,31 +163,56 @@ export const RiderManagement = () => {
     setShowAddForm(true);
   };
 
-  const handleDelete = (riderId: string) => {
-    const updatedRiders = riders.filter(r => r.id !== riderId);
-    saveRiders(updatedRiders);
-    
-    // Remove from users table
-    const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
-    const updatedUsers = allUsers.filter((u: any) => u.id !== riderId);
-    localStorage.setItem('users', JSON.stringify(updatedUsers));
-    
-    toast({ title: "Rider removed" });
+  const handleDelete = async (riderId: string) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: false })
+        .eq('id', riderId);
+
+      if (error) throw error;
+      
+      await loadRiders();
+      toast({ title: "Rider deactivated" });
+    } catch (error) {
+      console.error('Error deleting rider:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to deactivate rider",
+        variant: "destructive" 
+      });
+    }
   };
 
-  const toggleStatus = (riderId: string) => {
-    const updatedRiders = riders.map(r => 
-      r.id === riderId ? { ...r, isActive: !r.isActive } : r
-    );
-    saveRiders(updatedRiders);
-    toast({ title: "Rider status updated" });
+  const toggleStatus = async (riderId: string) => {
+    try {
+      const rider = riders.find(r => r.id === riderId);
+      if (!rider) return;
+
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: !rider.isActive })
+        .eq('id', riderId);
+
+      if (error) throw error;
+      
+      await loadRiders();
+      toast({ title: "Rider status updated" });
+    } catch (error) {
+      console.error('Error updating rider status:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to update rider status",
+        variant: "destructive" 
+      });
+    }
   };
 
   const toggleOnlineStatus = (riderId: string) => {
     const updatedRiders = riders.map(r => 
       r.id === riderId ? { ...r, isOnline: !r.isOnline } : r
     );
-    saveRiders(updatedRiders);
+    setRiders(updatedRiders);
     toast({ title: "Rider online status updated" });
   };
 
@@ -185,6 +251,7 @@ export const RiderManagement = () => {
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                     required
+                    disabled={!!editingRider}
                   />
                 </div>
                 <div>

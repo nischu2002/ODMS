@@ -7,12 +7,13 @@ import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit, Trash2, Users } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { supabase } from '../integrations/supabase/client';
 
 interface Staff {
   id: string;
   name: string;
   email: string;
-  phone: string;
+  phone: string | null;
   role: string;
   restaurantId: string;
   isActive: boolean;
@@ -27,7 +28,7 @@ export const StaffManagement = () => {
     name: '',
     email: '',
     phone: '',
-    role: 'kitchen_staff',
+    role: 'restaurant_staff',
     password: '',
     confirmPassword: ''
   });
@@ -35,25 +36,46 @@ export const StaffManagement = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadStaff();
+    if (restaurant) {
+      loadStaff();
+    }
   }, [restaurant]);
 
-  const loadStaff = () => {
+  const loadStaff = async () => {
     if (!restaurant) return;
     
-    const existingStaff = localStorage.getItem(`staff_${restaurant.id}`);
-    if (existingStaff) {
-      setStaff(JSON.parse(existingStaff));
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('restaurant_id', restaurant.id)
+        .eq('role', 'restaurant_staff');
+
+      if (error) throw error;
+
+      const formattedStaff: Staff[] = data?.map(user => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        restaurantId: user.restaurant_id!,
+        isActive: user.is_active,
+        createdAt: user.created_at
+      })) || [];
+
+      setStaff(formattedStaff);
+    } catch (error) {
+      console.error('Error loading staff:', error);
+      toast({ 
+        title: "Error loading staff", 
+        description: "Failed to load staff members",
+        variant: "destructive" 
+      });
     }
   };
 
-  const saveStaff = (staffList: Staff[]) => {
-    if (!restaurant) return;
-    localStorage.setItem(`staff_${restaurant.id}`, JSON.stringify(staffList));
-    setStaff(staffList);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!restaurant) return;
@@ -77,47 +99,66 @@ export const StaffManagement = () => {
       return;
     }
 
-    if (editingStaff) {
-      const updatedStaff = staff.map(s => 
-        s.id === editingStaff.id 
-          ? { ...editingStaff, name: formData.name, email: formData.email, phone: formData.phone, role: formData.role }
-          : s
-      );
-      saveStaff(updatedStaff);
-      toast({ title: "Staff member updated successfully" });
-      setEditingStaff(null);
-    } else {
-      const newStaff: Staff = {
-        id: 'staff-' + Date.now(),
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        role: formData.role,
-        restaurantId: restaurant.id,
-        isActive: true,
-        createdAt: new Date().toISOString()
-      };
+    try {
+      if (editingStaff) {
+        // Update existing staff
+        const { error } = await supabase
+          .from('users')
+          .update({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone || null
+          })
+          .eq('id', editingStaff.id);
 
-      // Add to users table for login
-      const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
-      const newUser = {
-        id: newStaff.id,
-        restaurantId: restaurant.id,
-        email: formData.email,
-        password: formData.password, // In production, this should be hashed
-        name: formData.name,
-        role: 'restaurant_staff',
-        createdAt: new Date().toISOString()
-      };
-      allUsers.push(newUser);
-      localStorage.setItem('users', JSON.stringify(allUsers));
+        if (error) throw error;
 
-      saveStaff([...staff, newStaff]);
-      toast({ title: "Staff member added successfully" });
+        toast({ title: "Staff member updated successfully" });
+        setEditingStaff(null);
+      } else {
+        // Create new staff member
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/staff-dashboard`
+          }
+        });
+
+        if (authError) throw authError;
+
+        if (!authData.user) {
+          throw new Error('Failed to create user account');
+        }
+
+        // Create user profile
+        const { error: profileError } = await supabase
+          .from('users')
+          .insert({
+            id: authData.user.id,
+            restaurant_id: restaurant.id,
+            email: formData.email,
+            name: formData.name,
+            role: 'restaurant_staff',
+            phone: formData.phone || null
+          });
+
+        if (profileError) throw profileError;
+
+        toast({ title: "Staff member added successfully" });
+      }
+      
+      setFormData({ name: '', email: '', phone: '', role: 'restaurant_staff', password: '', confirmPassword: '' });
+      setShowAddForm(false);
+      await loadStaff();
+    } catch (error: any) {
+      console.error('Error managing staff:', error);
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to manage staff member",
+        variant: "destructive" 
+      });
     }
-    
-    setFormData({ name: '', email: '', phone: '', role: 'kitchen_staff', password: '', confirmPassword: '' });
-    setShowAddForm(false);
   };
 
   const handleEdit = (staffMember: Staff) => {
@@ -125,7 +166,7 @@ export const StaffManagement = () => {
     setFormData({
       name: staffMember.name,
       email: staffMember.email,
-      phone: staffMember.phone,
+      phone: staffMember.phone || '',
       role: staffMember.role,
       password: '',
       confirmPassword: ''
@@ -133,24 +174,49 @@ export const StaffManagement = () => {
     setShowAddForm(true);
   };
 
-  const handleDelete = (staffId: string) => {
-    const updatedStaff = staff.filter(s => s.id !== staffId);
-    saveStaff(updatedStaff);
-    
-    // Remove from users table
-    const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
-    const updatedUsers = allUsers.filter((u: any) => u.id !== staffId);
-    localStorage.setItem('users', JSON.stringify(updatedUsers));
-    
-    toast({ title: "Staff member removed" });
+  const handleDelete = async (staffId: string) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: false })
+        .eq('id', staffId);
+
+      if (error) throw error;
+      
+      await loadStaff();
+      toast({ title: "Staff member deactivated" });
+    } catch (error) {
+      console.error('Error deleting staff:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to deactivate staff member",
+        variant: "destructive" 
+      });
+    }
   };
 
-  const toggleStatus = (staffId: string) => {
-    const updatedStaff = staff.map(s => 
-      s.id === staffId ? { ...s, isActive: !s.isActive } : s
-    );
-    saveStaff(updatedStaff);
-    toast({ title: "Staff status updated" });
+  const toggleStatus = async (staffId: string) => {
+    try {
+      const staffMember = staff.find(s => s.id === staffId);
+      if (!staffMember) return;
+
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: !staffMember.isActive })
+        .eq('id', staffId);
+
+      if (error) throw error;
+      
+      await loadStaff();
+      toast({ title: "Staff status updated" });
+    } catch (error) {
+      console.error('Error updating staff status:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to update staff status",
+        variant: "destructive" 
+      });
+    }
   };
 
   return (
@@ -188,6 +254,7 @@ export const StaffManagement = () => {
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                     required
+                    disabled={!!editingStaff}
                   />
                 </div>
                 <div>
@@ -196,22 +263,7 @@ export const StaffManagement = () => {
                     id="phone"
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    required
                   />
-                </div>
-                <div>
-                  <Label htmlFor="role">Role</Label>
-                  <select
-                    id="role"
-                    value={formData.role}
-                    onChange={(e) => setFormData({...formData, role: e.target.value})}
-                    className="w-full p-2 border rounded-md"
-                  >
-                    <option value="kitchen_staff">Kitchen Staff</option>
-                    <option value="cashier">Cashier</option>
-                    <option value="manager">Manager</option>
-                    <option value="waiter">Waiter</option>
-                  </select>
                 </div>
                 {!editingStaff && (
                   <>
@@ -250,7 +302,7 @@ export const StaffManagement = () => {
                   onClick={() => {
                     setShowAddForm(false);
                     setEditingStaff(null);
-                    setFormData({ name: '', email: '', phone: '', role: 'kitchen_staff', password: '', confirmPassword: '' });
+                    setFormData({ name: '', email: '', phone: '', role: 'restaurant_staff', password: '', confirmPassword: '' });
                   }}
                 >
                   Cancel
@@ -276,7 +328,7 @@ export const StaffManagement = () => {
                 <div className="flex-1">
                   <h3 className="font-medium">{staffMember.name}</h3>
                   <p className="text-sm text-gray-600">{staffMember.email}</p>
-                  <p className="text-sm text-gray-600">{staffMember.phone}</p>
+                  <p className="text-sm text-gray-600">{staffMember.phone || 'No phone'}</p>
                   <span className={`px-2 py-1 rounded-full text-xs ${
                     staffMember.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                   }`}>

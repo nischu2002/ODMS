@@ -1,13 +1,16 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, Restaurant } from '../types';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '../integrations/supabase/client';
+import { User as AppUser, Restaurant } from '../types';
 
 interface AuthContextType {
-  user: User | null;
+  user: AppUser | null;
+  session: Session | null;
   restaurant: Restaurant | null;
   login: (email: string, password: string, domain: string) => Promise<boolean>;
   loginSuperAdmin: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isLoading: boolean;
   createSuperAdmin: (email: string, password: string, name: string) => Promise<boolean>;
   registerRestaurant: (data: any) => Promise<{ success: boolean; domain?: string; error?: string }>;
@@ -15,43 +18,109 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Initialize proper database structure in localStorage
-const initializeDatabase = () => {
-  // Check if database is already initialized
-  if (!localStorage.getItem('odms_initialized')) {
-    // Initialize tables
-    localStorage.setItem('restaurants', JSON.stringify([]));
-    localStorage.setItem('users', JSON.stringify([]));
-    localStorage.setItem('orders', JSON.stringify([]));
-    localStorage.setItem('superAdmins', JSON.stringify([]));
-    localStorage.setItem('odms_initialized', 'true');
-    
-    console.log('Database initialized with proper structure');
-  }
-};
-
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Initialize database structure
-    initializeDatabase();
-    
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
+        setSession(session);
+        
+        if (session?.user) {
+          await loadUserData(session.user);
+        } else {
+          setUser(null);
+          setRestaurant(null);
+        }
+        setIsLoading(false);
+      }
+    );
+
     // Check for existing session
-    const storedUser = localStorage.getItem('user');
-    const storedRestaurant = localStorage.getItem('restaurant');
-    
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    if (storedRestaurant) {
-      setRestaurant(JSON.parse(storedRestaurant));
-    }
-    
-    setIsLoading(false);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        loadUserData(session.user);
+      } else {
+        setIsLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const loadUserData = async (authUser: User) => {
+    try {
+      // Check if user is a super admin
+      const { data: superAdmin } = await supabase
+        .from('super_admins')
+        .select('*')
+        .eq('id', authUser.id)
+        .single();
+
+      if (superAdmin) {
+        setUser({
+          id: superAdmin.id,
+          email: superAdmin.email,
+          name: superAdmin.name,
+          role: 'super_admin',
+          createdAt: superAdmin.created_at
+        });
+        return;
+      }
+
+      // Check if user is in users table
+      const { data: userData } = await supabase
+        .from('users')
+        .select('*, restaurants(*)')
+        .eq('id', authUser.id)
+        .single();
+
+      if (userData) {
+        setUser({
+          id: userData.id,
+          email: userData.email,
+          name: userData.name,
+          role: userData.role as AppUser['role'],
+          restaurantId: userData.restaurant_id || undefined,
+          phone: userData.phone || undefined,
+          isActive: userData.is_active,
+          createdAt: userData.created_at
+        });
+
+        // Load restaurant data if user is associated with one
+        if (userData.restaurant_id) {
+          const { data: restaurantData } = await supabase
+            .from('restaurants')
+            .select('*')
+            .eq('id', userData.restaurant_id)
+            .single();
+
+          if (restaurantData) {
+            setRestaurant({
+              id: restaurantData.id,
+              name: restaurantData.name,
+              domain: restaurantData.domain,
+              address: restaurantData.address,
+              phone: restaurantData.phone,
+              email: restaurantData.email,
+              adminId: restaurantData.admin_id || undefined,
+              createdAt: restaurantData.created_at,
+              isActive: restaurantData.is_active,
+              businessType: restaurantData.business_type || undefined
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
 
   const generateDomain = (restaurantName: string) => {
     return restaurantName
@@ -61,76 +130,73 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       .replace(/^-|-$/g, '');
   };
 
-  const isDomainUnique = (domain: string) => {
-    const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
-    return !allRestaurants.find((r: any) => r.domain === domain);
-  };
-
-  const isEmailUniqueGlobally = (email: string) => {
-    const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
-    const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
-    
-    // Check if email exists in users table
-    const userExists = allUsers.find((u: any) => u.email === email);
-    // Check if email exists as restaurant admin email
-    const restaurantExists = allRestaurants.find((r: any) => r.email === email);
-    
-    return !userExists && !restaurantExists;
-  };
-
   const registerRestaurant = async (data: any): Promise<{ success: boolean; domain?: string; error?: string }> => {
     try {
       const domain = generateDomain(data.restaurantName);
       
       // Check domain uniqueness
-      if (!isDomainUnique(domain)) {
+      const { data: existingRestaurant } = await supabase
+        .from('restaurants')
+        .select('id')
+        .eq('domain', domain)
+        .single();
+
+      if (existingRestaurant) {
         return { success: false, error: 'Restaurant name already taken. Please choose a different name.' };
       }
-      
-      // Check email uniqueness globally
-      if (!isEmailUniqueGlobally(data.adminEmail)) {
-        return { success: false, error: 'Email already registered. Please use a different email.' };
+
+      // Create admin user account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.adminEmail,
+        password: data.adminPassword,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`
+        }
+      });
+
+      if (authError) {
+        return { success: false, error: authError.message };
       }
-      
-      const restaurantId = `rest_${Date.now()}`;
-      const adminId = `admin_${Date.now()}`;
-      
-      // Create restaurant entry
-      const newRestaurant: Restaurant = {
-        id: restaurantId,
-        name: data.restaurantName,
-        domain: domain,
-        address: data.address,
-        phone: data.phone,
-        email: data.adminEmail,
-        adminId: adminId,
-        createdAt: new Date().toISOString(),
-        isActive: true,
-        businessType: data.businessType
-      };
-      
-      // Create admin user entry
-      const adminUser = {
-        id: adminId,
-        restaurantId: restaurantId,
-        email: data.adminEmail,
-        password: data.adminPassword, // In production, this should be hashed
-        name: data.ownerName,
-        role: 'admin',
-        createdAt: new Date().toISOString()
-      };
-      
-      // Store in database tables
-      const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
-      allRestaurants.push(newRestaurant);
-      localStorage.setItem('restaurants', JSON.stringify(allRestaurants));
-      
-      const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
-      allUsers.push(adminUser);
-      localStorage.setItem('users', JSON.stringify(allUsers));
-      
-      console.log('Restaurant and admin user created successfully:', { restaurantId, adminId, domain });
-      
+
+      if (!authData.user) {
+        return { success: false, error: 'Failed to create user account' };
+      }
+
+      // Create restaurant
+      const { data: restaurantData, error: restaurantError } = await supabase
+        .from('restaurants')
+        .insert({
+          name: data.restaurantName,
+          domain: domain,
+          address: data.address,
+          phone: data.phone,
+          email: data.adminEmail,
+          admin_id: authData.user.id,
+          business_type: data.businessType
+        })
+        .select()
+        .single();
+
+      if (restaurantError) {
+        return { success: false, error: restaurantError.message };
+      }
+
+      // Create user profile
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          restaurant_id: restaurantData.id,
+          email: data.adminEmail,
+          name: data.ownerName,
+          role: 'admin',
+          phone: data.phone
+        });
+
+      if (userError) {
+        return { success: false, error: userError.message };
+      }
+
       return { success: true, domain };
     } catch (error) {
       console.error('Registration error:', error);
@@ -139,145 +205,113 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const createSuperAdmin = async (email: string, password: string, name: string): Promise<boolean> => {
-    setIsLoading(true);
-    
     try {
-      // Check if super admin already exists
-      const superAdmins = JSON.parse(localStorage.getItem('superAdmins') || '[]');
-      
-      if (superAdmins.find((admin: any) => admin.email === email)) {
-        return false; // Super admin already exists
-      }
-      
-      const newSuperAdmin = {
-        id: 'super-' + Date.now(),
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
-        password, // In production, this should be hashed
-        name,
-        role: 'super_admin' as const,
-        createdAt: new Date().toISOString()
-      };
-      
-      superAdmins.push(newSuperAdmin);
-      localStorage.setItem('superAdmins', JSON.stringify(superAdmins));
-      
-      // Auto login the new super admin
-      const mockUser: User = {
-        id: newSuperAdmin.id,
-        email: newSuperAdmin.email,
-        name: newSuperAdmin.name,
-        role: 'super_admin',
-        createdAt: newSuperAdmin.createdAt
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/admin/dashboard`
+        }
+      });
+
+      if (authError || !authData.user) {
+        return false;
+      }
+
+      // Create super admin profile
+      const { error: profileError } = await supabase
+        .from('super_admins')
+        .insert({
+          id: authData.user.id,
+          email,
+          name
+        });
+
+      if (profileError) {
+        return false;
+      }
+
       return true;
     } catch (error) {
       console.error('Super admin creation failed:', error);
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const loginSuperAdmin = async (email: string, password: string): Promise<boolean> => {
-    setIsLoading(true);
-    
     try {
-      console.log('Super admin login attempt:', { email });
-      
-      const superAdmins = JSON.parse(localStorage.getItem('superAdmins') || '[]');
-      const superAdmin = superAdmins.find((admin: any) => admin.email === email && admin.password === password);
-      
-      if (superAdmin) {
-        const mockUser: User = {
-          id: superAdmin.id,
-          email: superAdmin.email,
-          name: superAdmin.name,
-          role: 'super_admin',
-          createdAt: superAdmin.createdAt
-        };
-        
-        setUser(mockUser);
-        localStorage.setItem('user', JSON.stringify(mockUser));
-        return true;
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error || !data.user) {
+        return false;
       }
-      
-      console.log('Super admin not found or invalid credentials');
-      return false;
+
+      // Verify user is a super admin
+      const { data: superAdmin } = await supabase
+        .from('super_admins')
+        .select('id')
+        .eq('id', data.user.id)
+        .single();
+
+      return !!superAdmin;
     } catch (error) {
       console.error('Super admin login failed:', error);
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const login = async (email: string, password: string, domain: string): Promise<boolean> => {
-    setIsLoading(true);
-    
     try {
-      console.log('Restaurant login attempt:', { email, domain });
-      
       // Find restaurant by domain
-      const allRestaurants = JSON.parse(localStorage.getItem('restaurants') || '[]');
-      const restaurant = allRestaurants.find((r: any) => r.domain === domain);
-      
-      if (!restaurant) {
-        console.log('Restaurant not found for domain:', domain);
+      const { data: restaurantData } = await supabase
+        .from('restaurants')
+        .select('id')
+        .eq('domain', domain)
+        .single();
+
+      if (!restaurantData) {
         return false;
       }
-      
-      // Find user in users table for this restaurant
-      const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
-      const user = allUsers.find((u: any) => 
-        u.email === email && 
-        u.password === password && 
-        u.restaurantId === restaurant.id
-      );
-      
-      if (user) {
-        const mockUser: User = {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          restaurantId: user.restaurantId,
-          createdAt: user.createdAt
-        };
-        
-        setUser(mockUser);
-        setRestaurant(restaurant);
-        
-        localStorage.setItem('user', JSON.stringify(mockUser));
-        localStorage.setItem('restaurant', JSON.stringify(restaurant));
-        
-        console.log('Login successful for user:', user.role);
-        return true;
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error || !data.user) {
+        return false;
       }
-      
-      console.log('User not found or invalid credentials');
-      return false;
+
+      // Verify user belongs to this restaurant
+      const { data: userData } = await supabase
+        .from('users')
+        .select('restaurant_id')
+        .eq('id', data.user.id)
+        .eq('restaurant_id', restaurantData.id)
+        .single();
+
+      return !!userData;
     } catch (error) {
       console.error('Login failed:', error);
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
+    setSession(null);
     setRestaurant(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('restaurant');
   };
 
   return (
     <AuthContext.Provider value={{ 
       user, 
+      session,
       restaurant, 
       login, 
       loginSuperAdmin,

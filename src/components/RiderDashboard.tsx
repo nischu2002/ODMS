@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
 import { MapPin, Truck, Clock, CheckCircle, Navigation } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { supabase } from '../integrations/supabase/client';
 import { Order } from '../types';
 
 export const RiderDashboard = () => {
@@ -14,41 +15,78 @@ export const RiderDashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadOrders();
+    if (restaurant && user) {
+      loadOrders();
+    }
   }, [restaurant, user]);
 
-  const loadOrders = () => {
+  const loadOrders = async () => {
     if (!restaurant || !user) return;
     
-    const existingOrders = localStorage.getItem(`orders_${restaurant.id}`);
-    if (existingOrders) {
-      const allOrders = JSON.parse(existingOrders);
-      // Filter orders assigned to this rider
-      const myOrders = allOrders.filter((order: Order) => order.riderId === user.id);
-      setOrders(myOrders);
+    try {
+      const { data: ordersData, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items(*)
+        `)
+        .eq('restaurant_id', restaurant.id)
+        .eq('assigned_rider_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedOrders: Order[] = ordersData?.map(order => ({
+        id: order.id,
+        restaurantId: order.restaurant_id,
+        customerName: order.customer_name,
+        customerPhone: order.customer_phone,
+        customerAddress: order.customer_address,
+        totalAmount: order.total_amount,
+        status: order.status as Order['status'],
+        paymentStatus: order.payment_status as Order['paymentStatus'],
+        assignedStaffId: order.assigned_staff_id || undefined,
+        assignedRiderId: order.assigned_rider_id || undefined,
+        createdAt: order.created_at,
+        estimatedDeliveryTime: order.estimated_delivery_time || undefined,
+        items: (order.order_items as any[])?.map(item => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price
+        })) || []
+      })) || [];
+
+      setOrders(formattedOrders);
+    } catch (error) {
+      console.error('Error loading orders:', error);
+      toast({ 
+        title: "Error loading orders", 
+        description: "Failed to load assigned orders",
+        variant: "destructive" 
+      });
     }
   };
 
-  const saveOrders = (ordersList: Order[]) => {
-    if (!restaurant) return;
-    
-    // Get all orders and update only the ones for this rider
-    const allOrders = JSON.parse(localStorage.getItem(`orders_${restaurant.id}`) || '[]');
-    const updatedAllOrders = allOrders.map((order: Order) => {
-      const updatedOrder = ordersList.find(o => o.id === order.id);
-      return updatedOrder || order;
-    });
-    
-    localStorage.setItem(`orders_${restaurant.id}`, JSON.stringify(updatedAllOrders));
-    setOrders(ordersList);
-  };
+  const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
 
-  const updateOrderStatus = (orderId: string, newStatus: Order['status']) => {
-    const updatedOrders = orders.map(order => 
-      order.id === orderId ? { ...order, status: newStatus } : order
-    );
-    saveOrders(updatedOrders);
-    toast({ title: `Order marked as ${newStatus}` });
+      if (error) throw error;
+
+      await loadOrders();
+      toast({ title: `Order marked as ${newStatus}` });
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast({ 
+        title: "Error updating order", 
+        description: "Failed to update order status",
+        variant: "destructive" 
+      });
+    }
   };
 
   const toggleOnlineStatus = () => {

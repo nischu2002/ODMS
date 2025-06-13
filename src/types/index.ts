@@ -5,6 +5,8 @@ export interface User {
   name: string;
   role: 'super_admin' | 'admin' | 'restaurant_staff' | 'rider';
   restaurantId?: string;
+  phone?: string;
+  isActive?: boolean;
   createdAt: string;
 }
 
@@ -15,7 +17,7 @@ export interface Restaurant {
   address: string;
   phone: string;
   email: string;
-  adminId: string;
+  adminId?: string;
   createdAt: string;
   isActive: boolean;
   businessType?: string;
@@ -40,7 +42,7 @@ export interface Order {
   items: OrderItem[];
   totalAmount: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'assigned' | 'picked_up' | 'delivered' | 'cancelled';
-  assignedToKitchen?: boolean;
+  assignedStaffId?: string;
   assignedRiderId?: string;
   riderId?: string;
   createdAt: string;

@@ -1,31 +1,49 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../components/Layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { useToast } from '../hooks/use-toast';
+import { supabase } from '../integrations/supabase/client';
 import { 
   Store, 
   Users, 
   Plus, 
-  Search,
   Building,
   Globe,
-  UserPlus
+  UserPlus,
+  Edit,
+  Trash2
 } from 'lucide-react';
 
+interface Restaurant {
+  id: string;
+  name: string;
+  domain: string;
+  address: string;
+  phone: string;
+  email: string;
+  admin_id: string | null;
+  business_type: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+interface RestaurantAdmin {
+  id: string;
+  name: string;
+  email: string;
+  restaurant_id: string | null;
+  phone: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export default function SuperAdminDashboard() {
-  const [restaurants, setRestaurants] = useState(() => {
-    const stored = localStorage.getItem('restaurants');
-    return stored ? JSON.parse(stored) : [];
-  });
-  
-  const [restaurantAdmins, setRestaurantAdmins] = useState(() => {
-    const stored = localStorage.getItem('restaurantAdmins');
-    return stored ? JSON.parse(stored) : [];
-  });
-  
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [admins, setAdmins] = useState<RestaurantAdmin[]>([]);
   const [showAddRestaurant, setShowAddRestaurant] = useState(false);
   const [showAddAdmin, setShowAddAdmin] = useState(false);
   const [newRestaurant, setNewRestaurant] = useState({
@@ -42,54 +60,204 @@ export default function SuperAdminDashboard() {
     password: '',
     restaurantId: ''
   });
+  const { toast } = useToast();
 
-  const handleAddRestaurant = () => {
-    if (!newRestaurant.name || !newRestaurant.domain) return;
-    
-    const restaurant = {
-      id: Date.now().toString(),
-      ...newRestaurant,
-      adminId: '',
-      createdAt: new Date().toISOString(),
-      isActive: true
-    };
-    
-    const updatedRestaurants = [...restaurants, restaurant];
-    setRestaurants(updatedRestaurants);
-    localStorage.setItem('restaurants', JSON.stringify(updatedRestaurants));
-    
-    setNewRestaurant({
-      name: '',
-      domain: '',
-      businessType: '',
-      address: '',
-      phone: '',
-      email: ''
-    });
-    setShowAddRestaurant(false);
+  useEffect(() => {
+    loadRestaurants();
+    loadAdmins();
+  }, []);
+
+  const loadRestaurants = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('restaurants')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setRestaurants(data || []);
+    } catch (error) {
+      console.error('Error loading restaurants:', error);
+      toast({
+        title: "Error loading restaurants",
+        description: "Failed to load restaurants",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleAddAdmin = () => {
-    if (!newAdmin.name || !newAdmin.email || !newAdmin.password || !newAdmin.restaurantId) return;
+  const loadAdmins = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('role', 'admin')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAdmins(data || []);
+    } catch (error) {
+      console.error('Error loading admins:', error);
+      toast({
+        title: "Error loading admins",
+        description: "Failed to load restaurant admins",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const generateDomain = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  };
+
+  const handleAddRestaurant = async () => {
+    if (!newRestaurant.name || !newRestaurant.domain) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
     
-    const admin = {
-      id: Date.now().toString(),
-      ...newAdmin,
-      role: 'admin' as const,
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const domain = newRestaurant.domain || generateDomain(newRestaurant.name);
+
+      const { error } = await supabase
+        .from('restaurants')
+        .insert({
+          name: newRestaurant.name,
+          domain: domain,
+          address: newRestaurant.address,
+          phone: newRestaurant.phone,
+          email: newRestaurant.email,
+          business_type: newRestaurant.businessType
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Restaurant created",
+        description: "Restaurant has been created successfully"
+      });
+
+      setNewRestaurant({
+        name: '',
+        domain: '',
+        businessType: '',
+        address: '',
+        phone: '',
+        email: ''
+      });
+      setShowAddRestaurant(false);
+      await loadRestaurants();
+    } catch (error: any) {
+      console.error('Error creating restaurant:', error);
+      toast({
+        title: "Error creating restaurant",
+        description: error.message || "Failed to create restaurant",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleAddAdmin = async () => {
+    if (!newAdmin.name || !newAdmin.email || !newAdmin.password || !newAdmin.restaurantId) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
     
-    const updatedAdmins = [...restaurantAdmins, admin];
-    setRestaurantAdmins(updatedAdmins);
-    localStorage.setItem('restaurantAdmins', JSON.stringify(updatedAdmins));
-    
-    setNewAdmin({
-      name: '',
-      email: '',
-      password: '',
-      restaurantId: ''
-    });
-    setShowAddAdmin(false);
+    try {
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newAdmin.email,
+        password: newAdmin.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/restaurant-admin`
+        }
+      });
+
+      if (authError) throw authError;
+
+      if (!authData.user) {
+        throw new Error('Failed to create user account');
+      }
+
+      // Create user profile
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          restaurant_id: newAdmin.restaurantId,
+          email: newAdmin.email,
+          name: newAdmin.name,
+          role: 'admin'
+        });
+
+      if (profileError) throw profileError;
+
+      // Update restaurant admin_id
+      const { error: updateError } = await supabase
+        .from('restaurants')
+        .update({ admin_id: authData.user.id })
+        .eq('id', newAdmin.restaurantId);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Admin created",
+        description: "Restaurant admin has been created successfully"
+      });
+
+      setNewAdmin({
+        name: '',
+        email: '',
+        password: '',
+        restaurantId: ''
+      });
+      setShowAddAdmin(false);
+      await loadAdmins();
+      await loadRestaurants();
+    } catch (error: any) {
+      console.error('Error creating admin:', error);
+      toast({
+        title: "Error creating admin",
+        description: error.message || "Failed to create admin",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const toggleRestaurantStatus = async (restaurantId: string, isActive: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('restaurants')
+        .update({ is_active: !isActive })
+        .eq('id', restaurantId);
+
+      if (error) throw error;
+
+      await loadRestaurants();
+      toast({
+        title: "Restaurant status updated",
+        description: `Restaurant has been ${!isActive ? 'activated' : 'deactivated'}`
+      });
+    } catch (error) {
+      console.error('Error updating restaurant status:', error);
+      toast({
+        title: "Error updating restaurant",
+        description: "Failed to update restaurant status",
+        variant: "destructive"
+      });
+    }
   };
 
   const getRestaurantName = (restaurantId: string) => {
@@ -122,7 +290,7 @@ export default function SuperAdminDashboard() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{restaurantAdmins.length}</div>
+              <div className="text-2xl font-bold">{admins.length}</div>
             </CardContent>
           </Card>
           
@@ -132,7 +300,7 @@ export default function SuperAdminDashboard() {
               <Globe className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{restaurants.filter(r => r.isActive).length}</div>
+              <div className="text-2xl font-bold">{restaurants.filter(r => r.is_active).length}</div>
             </CardContent>
           </Card>
         </div>
@@ -227,14 +395,23 @@ export default function SuperAdminDashboard() {
                     <div>
                       <h3 className="font-semibold">{restaurant.name}</h3>
                       <p className="text-sm text-gray-600">{restaurant.domain}.odms.com</p>
-                      <p className="text-sm text-gray-600">{restaurant.businessType}</p>
+                      <p className="text-sm text-gray-600">{restaurant.business_type}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-600">{restaurant.email}</p>
-                    <p className="text-sm text-gray-600">{restaurant.phone}</p>
-                    <span className={`inline-flex px-2 py-1 rounded-full text-xs ${restaurant.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      {restaurant.isActive ? 'Active' : 'Inactive'}
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600">{restaurant.email}</p>
+                      <p className="text-sm text-gray-600">{restaurant.phone}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => toggleRestaurantStatus(restaurant.id, restaurant.is_active)}
+                    >
+                      {restaurant.is_active ? 'Deactivate' : 'Activate'}
+                    </Button>
+                    <span className={`inline-flex px-2 py-1 rounded-full text-xs ${restaurant.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {restaurant.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
                 </div>
@@ -319,14 +496,14 @@ export default function SuperAdminDashboard() {
             )}
             
             <div className="space-y-4">
-              {restaurantAdmins.map((admin) => (
+              {admins.map((admin) => (
                 <div key={admin.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex items-center space-x-4">
                     <Users className="h-8 w-8 text-purple-600" />
                     <div>
                       <h3 className="font-semibold">{admin.name}</h3>
                       <p className="text-sm text-gray-600">{admin.email}</p>
-                      <p className="text-sm text-gray-600">Restaurant: {getRestaurantName(admin.restaurantId)}</p>
+                      <p className="text-sm text-gray-600">Restaurant: {getRestaurantName(admin.restaurant_id || '')}</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -336,7 +513,7 @@ export default function SuperAdminDashboard() {
                   </div>
                 </div>
               ))}
-              {restaurantAdmins.length === 0 && (
+              {admins.length === 0 && (
                 <p className="text-center text-gray-500 py-8">No restaurant admins added yet</p>
               )}
             </div>

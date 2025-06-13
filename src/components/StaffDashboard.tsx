@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -6,6 +7,7 @@ import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
 import { Plus, ChefHat, Truck, Clock, DollarSign } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { supabase } from '../integrations/supabase/client';
 import { Order, OrderItem } from '../types';
 
 export const StaffDashboard = () => {
@@ -21,76 +23,165 @@ export const StaffDashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadOrders();
+    if (restaurant) {
+      loadOrders();
+    }
   }, [restaurant]);
 
-  const loadOrders = () => {
+  const loadOrders = async () => {
     if (!restaurant) return;
     
-    const existingOrders = localStorage.getItem(`orders_${restaurant.id}`);
-    if (existingOrders) {
-      setOrders(JSON.parse(existingOrders));
+    try {
+      const { data: ordersData, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items(*)
+        `)
+        .eq('restaurant_id', restaurant.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedOrders: Order[] = ordersData?.map(order => ({
+        id: order.id,
+        restaurantId: order.restaurant_id,
+        customerName: order.customer_name,
+        customerPhone: order.customer_phone,
+        customerAddress: order.customer_address,
+        totalAmount: order.total_amount,
+        status: order.status as Order['status'],
+        paymentStatus: order.payment_status as Order['paymentStatus'],
+        assignedStaffId: order.assigned_staff_id || undefined,
+        assignedRiderId: order.assigned_rider_id || undefined,
+        createdAt: order.created_at,
+        estimatedDeliveryTime: order.estimated_delivery_time || undefined,
+        items: (order.order_items as any[])?.map(item => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price
+        })) || []
+      })) || [];
+
+      setOrders(formattedOrders);
+    } catch (error) {
+      console.error('Error loading orders:', error);
+      toast({ 
+        title: "Error loading orders", 
+        description: "Failed to load orders",
+        variant: "destructive" 
+      });
     }
   };
 
-  const saveOrders = (ordersList: Order[]) => {
-    if (!restaurant) return;
-    localStorage.setItem(`orders_${restaurant.id}`, JSON.stringify(ordersList));
-    setOrders(ordersList);
-  };
-
-  const createOrder = () => {
+  const createOrder = async () => {
     if (!restaurant || !user) return;
 
-    const totalAmount = newOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    
-    const order: Order = {
-      id: 'ORD-' + Date.now(),
-      restaurantId: restaurant.id,
-      customerName: newOrder.customerName,
-      customerPhone: newOrder.customerPhone,
-      customerAddress: newOrder.customerAddress,
-      items: newOrder.items.map((item, index) => ({ 
-        id: `item-${Date.now()}-${index}`, 
-        name: item.name, 
-        quantity: item.quantity, 
-        price: item.price 
-      })),
-      totalAmount,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      paymentStatus: 'pending'
-    };
+    try {
+      const totalAmount = newOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      // Create order
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          restaurant_id: restaurant.id,
+          customer_name: newOrder.customerName,
+          customer_phone: newOrder.customerPhone,
+          customer_address: newOrder.customerAddress,
+          total_amount: totalAmount,
+          status: 'pending',
+          payment_status: 'pending'
+        })
+        .select()
+        .single();
 
-    saveOrders([...orders, order]);
-    setNewOrder({
-      customerName: '',
-      customerPhone: '',
-      customerAddress: '',
-      items: [{ id: 'temp-1', name: '', quantity: 1, price: 0 }]
-    });
-    setShowNewOrder(false);
-    toast({ title: "Order created successfully" });
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = newOrder.items.map(item => ({
+        order_id: orderData.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      // Reset form
+      setNewOrder({
+        customerName: '',
+        customerPhone: '',
+        customerAddress: '',
+        items: [{ id: 'temp-1', name: '', quantity: 1, price: 0 }]
+      });
+      setShowNewOrder(false);
+      
+      // Reload orders
+      await loadOrders();
+      
+      toast({ title: "Order created successfully" });
+    } catch (error) {
+      console.error('Error creating order:', error);
+      toast({ 
+        title: "Error creating order", 
+        description: "Failed to create order",
+        variant: "destructive" 
+      });
+    }
   };
 
-  const updateOrderStatus = (orderId: string, newStatus: Order['status']) => {
-    const updatedOrders = orders.map(order => 
-      order.id === orderId ? { ...order, status: newStatus } : order
-    );
-    saveOrders(updatedOrders);
-    toast({ title: `Order ${newStatus}` });
+  const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      await loadOrders();
+      toast({ title: `Order ${newStatus}` });
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast({ 
+        title: "Error updating order", 
+        description: "Failed to update order status",
+        variant: "destructive" 
+      });
+    }
   };
 
   const assignToKitchen = (orderId: string) => {
     updateOrderStatus(orderId, 'confirmed');
   };
 
-  const assignRider = (orderId: string, riderId: string) => {
-    const updatedOrders = orders.map(order => 
-      order.id === orderId ? { ...order, riderId, status: 'assigned' as Order['status'] } : order
-    );
-    saveOrders(updatedOrders);
-    toast({ title: "Rider assigned successfully" });
+  const assignRider = async (orderId: string, riderId: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          assigned_rider_id: riderId,
+          status: 'assigned'
+        })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      await loadOrders();
+      toast({ title: "Rider assigned successfully" });
+    } catch (error) {
+      console.error('Error assigning rider:', error);
+      toast({ 
+        title: "Error assigning rider", 
+        description: "Failed to assign rider",
+        variant: "destructive" 
+      });
+    }
   };
 
   const addOrderItem = () => {
@@ -220,13 +311,13 @@ export const StaffDashboard = () => {
                       type="number"
                       placeholder="Qty"
                       value={item.quantity}
-                      onChange={(e) => updateOrderItem(index, 'quantity', parseInt(e.target.value))}
+                      onChange={(e) => updateOrderItem(index, 'quantity', parseInt(e.target.value) || 1)}
                     />
                     <Input
                       type="number"
                       placeholder="Price"
                       value={item.price}
-                      onChange={(e) => updateOrderItem(index, 'price', parseFloat(e.target.value))}
+                      onChange={(e) => updateOrderItem(index, 'price', parseFloat(e.target.value) || 0)}
                     />
                     <Button type="button" variant="outline" onClick={addOrderItem}>
                       <Plus className="h-4 w-4" />
