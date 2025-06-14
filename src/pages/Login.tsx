@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -47,9 +46,10 @@ export default function Login() {
         return;
       }
 
-      const success = await login(email, password, domain);
+      console.log('Attempting login with:', { email, domain });
+      const result = await login(email, password, domain);
       
-      if (success) {
+      if (result.success) {
         toast({
           title: "Login successful",
           description: "Welcome to ODMS!",
@@ -58,13 +58,15 @@ export default function Login() {
         // Navigate to dashboard - AuthContext will handle role-based redirect
         navigate('/dashboard');
       } else {
+        console.error('Login failed:', result.error);
         toast({
           title: "Login failed",
-          description: "Invalid credentials or domain. Please check your details.",
+          description: result.error || "Please check your credentials and try again.",
           variant: "destructive",
         });
       }
     } catch (error) {
+      console.error('Login error:', error);
       toast({
         title: "Login error",
         description: "Something went wrong. Please try again.",

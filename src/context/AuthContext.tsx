@@ -8,7 +8,7 @@ interface AuthContextType {
   user: AppUser | null;
   session: Session | null;
   restaurant: Restaurant | null;
-  login: (email: string, password: string, domain: string) => Promise<boolean>;
+  login: (email: string, password: string, domain: string) => Promise<{ success: boolean; error?: string }>;
   loginSuperAdmin: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   isLoading: boolean;
@@ -56,6 +56,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const loadUserData = async (authUser: User) => {
     try {
+      console.log('Loading user data for:', authUser.id);
+      
       // Check if user is a super admin
       const { data: superAdmin } = await supabase
         .from('super_admins')
@@ -64,6 +66,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .single();
 
       if (superAdmin) {
+        console.log('User is super admin');
         setUser({
           id: superAdmin.id,
           email: superAdmin.email,
@@ -75,13 +78,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       // Check if user is in users table
-      const { data: userData } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*, restaurants(*)')
         .eq('id', authUser.id)
         .single();
 
+      if (userError) {
+        console.error('Error loading user data:', userError);
+        return;
+      }
+
       if (userData) {
+        console.log('User data loaded:', userData);
         setUser({
           id: userData.id,
           email: userData.email,
@@ -139,10 +148,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .from('restaurants')
         .select('id')
         .eq('domain', domain)
-        .single();
+        .maybeSingle();
 
       if (existingRestaurant) {
-        return { success: false, error: 'Restaurant name already taken. Please choose a different name.' };
+        return { success: false, error: `Domain "${domain}" already exists. Please choose a different restaurant name.` };
+      }
+
+      // Check email uniqueness
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', data.adminEmail)
+        .maybeSingle();
+
+      if (existingUser) {
+        return { success: false, error: `Email "${data.adminEmail}" already exists. Please use a different email.` };
       }
 
       // Create admin user account
@@ -155,12 +175,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (authError) {
+        if (authError.message.includes('already registered')) {
+          return { success: false, error: `Email "${data.adminEmail}" already exists. Please use a different email.` };
+        }
         return { success: false, error: authError.message };
       }
 
       if (!authData.user) {
         return { success: false, error: 'Failed to create user account' };
       }
+
+      console.log('User created, creating restaurant...');
 
       // Create restaurant
       const { data: restaurantData, error: restaurantError } = await supabase
@@ -178,8 +203,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .single();
 
       if (restaurantError) {
+        console.error('Restaurant creation error:', restaurantError);
         return { success: false, error: restaurantError.message };
       }
+
+      console.log('Restaurant created, creating user profile...');
 
       // Create user profile
       const { error: userError } = await supabase
@@ -194,9 +222,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
       if (userError) {
+        console.error('User profile creation error:', userError);
         return { success: false, error: userError.message };
       }
 
+      console.log('Registration completed successfully');
       return { success: true, domain };
     } catch (error) {
       console.error('Registration error:', error);
@@ -264,40 +294,76 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const login = async (email: string, password: string, domain: string): Promise<boolean> => {
+  const login = async (email: string, password: string, domain: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Find restaurant by domain
-      const { data: restaurantData } = await supabase
+      console.log('Login attempt:', { email, domain });
+
+      // First, check if domain exists
+      const { data: restaurantData, error: domainError } = await supabase
         .from('restaurants')
         .select('id')
         .eq('domain', domain)
-        .single();
+        .maybeSingle();
 
-      if (!restaurantData) {
-        return false;
+      if (domainError) {
+        console.error('Domain lookup error:', domainError);
+        return { success: false, error: 'Database error during login. Please try again.' };
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
+      if (!restaurantData) {
+        console.log('Domain not found:', domain);
+        return { success: false, error: `Domain "${domain}" not found. Please check your restaurant domain.` };
+      }
+
+      console.log('Domain found, attempting auth...');
+
+      // Attempt authentication
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
-      if (error || !data.user) {
-        return false;
+      if (authError) {
+        console.error('Auth error:', authError);
+        if (authError.message.includes('Invalid login credentials')) {
+          return { success: false, error: 'Invalid email or password. Please check your credentials.' };
+        }
+        return { success: false, error: authError.message };
       }
 
+      if (!authData.user) {
+        return { success: false, error: 'Authentication failed. Please try again.' };
+      }
+
+      console.log('Auth successful, verifying user belongs to restaurant...');
+
       // Verify user belongs to this restaurant
-      const { data: userData } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select('restaurant_id')
-        .eq('id', data.user.id)
-        .eq('restaurant_id', restaurantData.id)
-        .single();
+        .eq('id', authData.user.id)
+        .maybeSingle();
 
-      return !!userData;
+      if (userError) {
+        console.error('User verification error:', userError);
+        return { success: false, error: 'User verification failed. Please contact support.' };
+      }
+
+      if (!userData) {
+        console.log('User profile not found');
+        return { success: false, error: 'User profile not found. Please contact support.' };
+      }
+
+      if (userData.restaurant_id !== restaurantData.id) {
+        console.log('User does not belong to this restaurant');
+        return { success: false, error: `This account is not associated with domain "${domain}". Please check your domain.` };
+      }
+
+      console.log('Login successful');
+      return { success: true };
     } catch (error) {
       console.error('Login failed:', error);
-      return false;
+      return { success: false, error: 'Login failed. Please try again.' };
     }
   };
 
