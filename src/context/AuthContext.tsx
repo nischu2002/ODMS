@@ -154,23 +154,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: `Domain "${domain}" already exists. Please choose a different restaurant name.` };
       }
 
-      // Check email uniqueness
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', data.adminEmail)
-        .maybeSingle();
-
-      if (existingUser) {
-        return { success: false, error: `Email "${data.adminEmail}" already exists. Please use a different email.` };
-      }
-
-      // Create admin user account
+      // Create admin user account - disable email confirmation
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.adminEmail,
         password: data.adminPassword,
         options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: {
+            email_confirm: false // Disable email confirmation
+          }
         }
       });
 
@@ -236,12 +228,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const createSuperAdmin = async (email: string, password: string, name: string): Promise<boolean> => {
     try {
-      // Create auth user
+      // Create auth user - disable email confirmation
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/admin/dashboard`
+          emailRedirectTo: `${window.location.origin}/admin/dashboard`,
+          data: {
+            email_confirm: false // Disable email confirmation
+          }
         }
       });
 
@@ -317,7 +312,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       console.log('Domain found, attempting auth...');
 
-      // Attempt authentication
+      // Attempt authentication - no email confirmation required
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -325,6 +320,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (authError) {
         console.error('Auth error:', authError);
+        // Handle specific error cases without checking for email confirmation
         if (authError.message.includes('Invalid login credentials')) {
           return { success: false, error: 'Invalid email or password. Please check your credentials.' };
         }
