@@ -28,33 +28,43 @@ export default function SuperAdminLogin() {
       let success = false;
       
       if (isSignup) {
+        console.log('Creating super admin account...');
         success = await createSuperAdmin(email, password, name);
         if (success) {
           toast({
             title: "Super Admin account created",
-            description: "Welcome to ODMS Super Admin!",
+            description: "Account created successfully! You can now sign in.",
+          });
+          setIsSignup(false); // Switch to login mode
+          setEmail('');
+          setPassword('');
+          setName('');
+        } else {
+          toast({
+            title: "Account creation failed",
+            description: "Failed to create super admin account. Please try again.",
+            variant: "destructive",
           });
         }
       } else {
+        console.log('Logging in super admin...');
         success = await loginSuperAdmin(email, password);
         if (success) {
           toast({
             title: "Login successful",
             description: "Welcome back, Super Admin!",
           });
+          navigate('/admin/dashboard');
+        } else {
+          toast({
+            title: "Login failed",
+            description: "Invalid credentials. Please check your email and password.",
+            variant: "destructive",
+          });
         }
       }
-      
-      if (success) {
-        navigate('/admin/dashboard');
-      } else {
-        toast({
-          title: isSignup ? "Signup failed" : "Login failed",
-          description: "Invalid credentials. Please try again.",
-          variant: "destructive",
-        });
-      }
     } catch (error) {
+      console.error('Super admin auth error:', error);
       toast({
         title: isSignup ? "Signup error" : "Login error",
         description: "Something went wrong. Please try again.",
@@ -78,6 +88,9 @@ export default function SuperAdminLogin() {
           <CardDescription>
             {isSignup ? 'Create Super Admin Account' : 'ODMS System Administration'}
           </CardDescription>
+          <div className="text-xs text-gray-500 mt-2">
+            {isSignup ? 'Any email format accepted' : 'Use any email format (@ symbol optional)'}
+          </div>
         </CardHeader>
         
         <CardContent>
@@ -97,15 +110,18 @@ export default function SuperAdminLogin() {
             )}
             
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email / Username</Label>
               <Input
                 id="email"
-                type="email"
-                placeholder="Enter your email"
+                type="text"
+                placeholder="Enter email or username (@ optional)"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+              <div className="text-xs text-gray-500">
+                You can use any format: admin, admin@domain.com, etc.
+              </div>
             </div>
             
             <div className="space-y-2">
@@ -135,7 +151,12 @@ export default function SuperAdminLogin() {
           <div className="mt-6 text-center">
             <Button 
               variant="link" 
-              onClick={() => setIsSignup(!isSignup)}
+              onClick={() => {
+                setIsSignup(!isSignup);
+                setEmail('');
+                setPassword('');
+                setName('');
+              }}
               className="text-red-600"
             >
               {isSignup ? 'Already have an account? Sign In' : 'Need to create an account? Sign Up'}
