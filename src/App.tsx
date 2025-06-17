@@ -66,6 +66,46 @@ const AppRoutes = () => {
           </ProtectedRoute>
         } 
       />
+      <Route 
+        path="/restaurant-admin/staff" 
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/restaurant-admin/orders" 
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/restaurant-admin/riders" 
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/restaurant-admin/analytics" 
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/restaurant-admin/settings" 
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        } 
+      />
       
       {/* Restaurant Staff Routes */}
       <Route 

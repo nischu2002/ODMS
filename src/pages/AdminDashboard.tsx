@@ -23,6 +23,35 @@ export default function AdminDashboard() {
   const { restaurant } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
 
+  const overviewStats = {
+    todayOrders: 23,
+    todayRevenue: 1234,
+    activeStaff: 8,
+    activeRiders: 5
+  };
+
+  const recentOrders = [
+    { id: '#001', customer: 'John Doe', amount: '$45.50', status: 'preparing', time: '5 min ago' },
+    { id: '#002', customer: 'Jane Smith', amount: '$32.75', status: 'ready', time: '12 min ago' },
+    { id: '#003', customer: 'Mike Johnson', amount: '$28.90', status: 'delivered', time: '25 min ago' },
+    { id: '#004', customer: 'Sarah Wilson', amount: '$56.25', status: 'assigned', time: '35 min ago' },
+  ];
+
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
+      case 'ready':
+        return 'bg-blue-100 text-blue-800';
+      case 'preparing':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'assigned':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -37,8 +66,8 @@ export default function AdminDashboard() {
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="orders">Orders</TabsTrigger>
-            <TabsTrigger value="staff">Staff</TabsTrigger>
-            <TabsTrigger value="riders">Riders</TabsTrigger>
+            <TabsTrigger value="staff">Restaurant Staff</TabsTrigger>
+            <TabsTrigger value="riders">Delivery Riders</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -50,7 +79,7 @@ export default function AdminDashboard() {
                   <ShoppingBag className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">23</div>
+                  <div className="text-2xl font-bold">{overviewStats.todayOrders}</div>
                   <p className="text-xs text-muted-foreground">+12% from yesterday</p>
                 </CardContent>
               </Card>
@@ -61,7 +90,7 @@ export default function AdminDashboard() {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">$1,234</div>
+                  <div className="text-2xl font-bold">${overviewStats.todayRevenue}</div>
                   <p className="text-xs text-muted-foreground">+8% from yesterday</p>
                 </CardContent>
               </Card>
@@ -72,7 +101,7 @@ export default function AdminDashboard() {
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">8</div>
+                  <div className="text-2xl font-bold">{overviewStats.activeStaff}</div>
                   <p className="text-xs text-muted-foreground">5 kitchen, 3 delivery</p>
                 </CardContent>
               </Card>
@@ -83,7 +112,7 @@ export default function AdminDashboard() {
                   <Truck className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">5</div>
+                  <div className="text-2xl font-bold">{overviewStats.activeRiders}</div>
                   <p className="text-xs text-muted-foreground">3 available, 2 delivering</p>
                 </CardContent>
               </Card>
@@ -97,12 +126,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[
-                    { id: '#001', customer: 'John Doe', amount: '$45.50', status: 'preparing', time: '5 min ago' },
-                    { id: '#002', customer: 'Jane Smith', amount: '$32.75', status: 'ready', time: '12 min ago' },
-                    { id: '#003', customer: 'Mike Johnson', amount: '$28.90', status: 'delivered', time: '25 min ago' },
-                    { id: '#004', customer: 'Sarah Wilson', amount: '$56.25', status: 'assigned', time: '35 min ago' },
-                  ].map((order) => (
+                  {recentOrders.map((order) => (
                     <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center space-x-4">
                         <div>
@@ -112,12 +136,7 @@ export default function AdminDashboard() {
                       </div>
                       <div className="flex items-center space-x-4">
                         <span className="font-medium">{order.amount}</span>
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                          order.status === 'ready' ? 'bg-blue-100 text-blue-800' :
-                          order.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-purple-100 text-purple-800'
-                        }`}>
+                        <span className={`px-2 py-1 rounded-full text-xs ${getStatusStyle(order.status)}`}>
                           {order.status}
                         </span>
                         <span className="text-sm text-gray-500">{order.time}</span>
@@ -156,15 +175,15 @@ export default function AdminDashboard() {
             </div>
           </TabsContent>
 
-          <TabsContent value="orders">
+          <TabsContent value="orders" className="space-y-6">
             <OrderManagement />
           </TabsContent>
 
-          <TabsContent value="staff">
+          <TabsContent value="staff" className="space-y-6">
             <StaffManagement />
           </TabsContent>
 
-          <TabsContent value="riders">
+          <TabsContent value="riders" className="space-y-6">
             <RiderManagement />
           </TabsContent>
         </Tabs>
