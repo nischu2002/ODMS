@@ -15,6 +15,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import RestaurantDashboard from "./pages/RestaurantDashboard";
 import RiderDashboard from "./pages/RiderDashboard";
 import NotFound from "./pages/NotFound";
+import { Skeleton } from "./components/ui/skeleton";
 
 const queryClient = new QueryClient();
 
@@ -22,7 +23,15 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode;
   const { user, isLoading } = useAuth();
   
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="space-y-4">
+          <Skeleton className="h-12 w-[250px]" />
+          <Skeleton className="h-4 w-[200px]" />
+          <Skeleton className="h-4 w-[150px]" />
+        </div>
+      </div>
+    );
   }
   
   if (!user) {
@@ -37,7 +46,19 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode;
 };
 
 const AppRoutes = () => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="space-y-4">
+          <Skeleton className="h-12 w-[250px]" />
+          <Skeleton className="h-4 w-[200px]" />
+          <Skeleton className="h-4 w-[150px]" />
+        </div>
+      </div>
+    );
+  }
   
   return (
     <Routes>
@@ -143,7 +164,11 @@ const AppRoutes = () => {
         } 
       />
       
-      <Route path="/unauthorized" element={<div className="min-h-screen flex items-center justify-center"><h1 className="text-2xl font-bold text-red-600">Unauthorized Access</h1></div>} />
+      <Route path="/unauthorized" element={
+        <div className="min-h-screen flex items-center justify-center">
+          <h1 className="text-2xl font-bold text-red-600">Unauthorized Access</h1>
+        </div>
+      } />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -154,11 +179,11 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
+      <BrowserRouter>
+        <AuthProvider>
           <AppRoutes />
-        </BrowserRouter>
-      </AuthProvider>
+        </AuthProvider>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

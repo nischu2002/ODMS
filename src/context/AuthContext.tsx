@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../integrations/supabase/client';
@@ -48,9 +47,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+    
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
+        
         console.log('Auth state changed:', event, session?.user?.id);
         setSession(session);
         
@@ -60,21 +63,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setUser(null);
           setRestaurant(null);
         }
-        setIsLoading(false);
+        
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     );
 
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        loadUserData(session.user);
-      } else {
-        setIsLoading(false);
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (!mounted) return;
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          setIsLoading(false);
+          return;
+        }
+        
+        setSession(session);
+        if (session?.user) {
+          await loadUserData(session.user);
+        }
+      } catch (error) {
+        console.error('Initialize auth error:', error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
-    });
+    };
 
-    return () => subscription.unsubscribe();
+    initializeAuth();
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadUserData = async (authUser: User) => {
@@ -259,9 +286,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       cleanupAuthState();
       await supabase.auth.signOut({ scope: 'global' });
 
-      // Create auth user - disable email validation completely
+      // For super admin, we'll use a direct database approach first
+      const adminId = crypto.randomUUID();
+      const formattedEmail = email.includes('@') ? email : `${email}@admin.local`;
+      
+      // Insert directly into super_admins table with a generated ID
+      const { error: directError } = await supabase
+        .from('super_admins')
+        .insert({
+          id: adminId,
+          email: formattedEmail,
+          name
+        });
+
+      if (!directError) {
+        console.log('Super admin created directly');
+        return true;
+      }
+
+      // If direct insert fails, try auth creation
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.includes('@') ? email : `${email}@admin.local`, // Add minimal format if missing @
+        email: formattedEmail,
         password,
         options: {
           emailRedirectTo: undefined,
@@ -273,71 +318,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (authError) {
         console.error('Super admin auth error:', authError);
-        // Try direct insert if signup fails
-        if (authError.message.includes('email_address_invalid') || authError.message.includes('already registered')) {
-          console.log('Attempting direct database insert for super admin');
-          return await createSuperAdminDirectly(email, name);
-        }
         return false;
       }
 
       if (!authData.user) {
-        console.log('No user created, attempting direct insert');
-        return await createSuperAdminDirectly(email, name);
+        console.log('No user created');
+        return false;
       }
 
       console.log('Auth user created, creating super admin profile...');
 
-      // Create super admin profile - use service role key approach
+      // Create super admin profile
       const { error: profileError } = await supabase
         .from('super_admins')
         .insert({
           id: authData.user.id,
-          email: email.includes('@') ? email : `${email}@admin.local`,
+          email: formattedEmail,
           name
         });
 
       if (profileError) {
         console.error('Super admin profile error:', profileError);
-        // If RLS blocks this, try the direct approach
-        return await createSuperAdminDirectly(email, name);
+        return false;
       }
 
       console.log('Super admin created successfully');
       return true;
     } catch (error) {
       console.error('Super admin creation failed:', error);
-      return await createSuperAdminDirectly(email, name);
-    }
-  };
-
-  // Fallback method for creating super admin
-  const createSuperAdminDirectly = async (email: string, name: string): Promise<boolean> => {
-    try {
-      console.log('Using direct super admin creation method');
-      
-      // Generate a UUID for the super admin
-      const adminId = crypto.randomUUID();
-      const formattedEmail = email.includes('@') ? email : `${email}@admin.local`;
-      
-      // Insert directly into super_admins table with a generated ID
-      const { error } = await supabase
-        .from('super_admins')
-        .insert({
-          id: adminId,
-          email: formattedEmail,
-          name
-        });
-
-      if (error) {
-        console.error('Direct super admin creation error:', error);
-        return false;
-      }
-
-      console.log('Super admin created directly');
-      return true;
-    } catch (error) {
-      console.error('Direct super admin creation failed:', error);
       return false;
     }
   };
@@ -351,45 +359,46 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       const formattedEmail = email.includes('@') ? email : `${email}@admin.local`;
       
+      // Try to find super admin by email directly first
+      const { data: superAdmin } = await supabase
+        .from('super_admins')
+        .select('*')
+        .or(`email.eq.${email},email.eq.${formattedEmail}`)
+        .single();
+
+      if (superAdmin) {
+        console.log('Super admin found, setting user data');
+        // Set user data manually
+        setUser({
+          id: superAdmin.id,
+          email: superAdmin.email,
+          name: superAdmin.name,
+          role: 'super_admin',
+          createdAt: superAdmin.created_at
+        });
+        setIsLoading(false);
+        return true;
+      }
+
+      // If not found directly, try auth login
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formattedEmail,
         password
       });
 
-      // If auth fails, try to find super admin by email directly
       if (error || !data.user) {
-        console.log('Auth failed, checking super admin directly:', error?.message);
-        
-        const { data: superAdmin } = await supabase
-          .from('super_admins')
-          .select('*')
-          .or(`email.eq.${email},email.eq.${formattedEmail}`)
-          .single();
-
-        if (superAdmin) {
-          console.log('Super admin found, allowing login');
-          // Set user data manually
-          setUser({
-            id: superAdmin.id,
-            email: superAdmin.email,
-            name: superAdmin.name,
-            role: 'super_admin',
-            createdAt: superAdmin.created_at
-          });
-          return true;
-        }
-        
+        console.log('Auth failed:', error?.message);
         return false;
       }
 
       // Verify user is a super admin
-      const { data: superAdmin } = await supabase
+      const { data: authSuperAdmin } = await supabase
         .from('super_admins')
         .select('id')
         .eq('id', data.user.id)
         .single();
 
-      return !!superAdmin;
+      return !!authSuperAdmin;
     } catch (error) {
       console.error('Super admin login failed:', error);
       return false;
