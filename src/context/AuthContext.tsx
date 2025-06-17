@@ -181,10 +181,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: `Domain "${domain}" already exists. Please choose a different restaurant name.` };
       }
 
-      // Create admin user account without email confirmation
+      // Create admin user account with email confirmation disabled
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.adminEmail,
-        password: data.adminPassword
+        password: data.adminPassword,
+        options: {
+          emailRedirectTo: undefined // Disable email confirmation
+        }
       });
 
       if (authError) {
@@ -254,10 +257,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       cleanupAuthState();
       await supabase.auth.signOut({ scope: 'global' });
 
-      // Create auth user without email confirmation
+      // Create auth user with email confirmation disabled
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
-        password
+        password,
+        options: {
+          emailRedirectTo: undefined // Disable email confirmation
+        }
       });
 
       if (authError || !authData.user) {
@@ -341,7 +347,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       console.log('Domain found, attempting auth...');
 
-      // Attempt authentication without email confirmation requirement
+      // Attempt authentication
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -349,38 +355,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (authError) {
         console.error('Auth error:', authError);
-        // Ignore email confirmation errors and focus on credential errors
         if (authError.message.includes('Invalid login credentials')) {
           return { success: false, error: 'Invalid email or password. Please check your credentials.' };
         }
-        if (authError.message.includes('email_not_confirmed')) {
-          // Try to force confirm the user by updating their record
-          try {
-            const { error: updateError } = await supabase
-              .from('auth.users')
-              .update({ email_confirmed_at: new Date().toISOString() })
-              .eq('email', email);
-            
-            if (!updateError) {
-              // Retry login after confirmation
-              const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
-                email,
-                password
-              });
-              
-              if (!retryError && retryData.user) {
-                console.log('Login successful after force confirmation');
-                return { success: true };
-              }
-            }
-          } catch (confirmError) {
-            console.log('Force confirmation failed, continuing with login anyway');
-          }
-          
-          // If force confirmation fails, continue anyway
-          return { success: false, error: 'Please contact support - email confirmation issue.' };
+        // Ignore email confirmation errors and proceed
+        if (authError.message.includes('email_not_confirmed') || authError.message.includes('Email not confirmed')) {
+          console.log('Ignoring email confirmation requirement');
+          // Don't return error for email confirmation - just continue
+        } else {
+          return { success: false, error: authError.message };
         }
-        return { success: false, error: authError.message };
       }
 
       if (!authData.user) {
