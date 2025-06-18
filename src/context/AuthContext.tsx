@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../integrations/supabase/client';
@@ -17,29 +18,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Clean up auth state completely
-const cleanupAuthState = () => {
-  try {
-    // Remove all Supabase auth keys from localStorage
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
-        localStorage.removeItem(key);
-      }
-    });
-    
-    // Remove from sessionStorage if it exists
-    if (typeof sessionStorage !== 'undefined') {
-      Object.keys(sessionStorage).forEach((key) => {
-        if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
-          sessionStorage.removeItem(key);
-        }
-      });
-    }
-  } catch (error) {
-    console.log('Cleanup auth state error (safe to ignore):', error);
-  }
-};
-
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AppUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -48,8 +26,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     let mounted = true;
-    
-    // Set up auth state listener
+
+    const initializeAuth = async () => {
+      try {
+        // Get initial session
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        
+        if (!mounted) return;
+        
+        setSession(initialSession);
+        
+        if (initialSession?.user) {
+          await loadUserData(initialSession.user);
+        }
+        
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    // Set up auth listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
@@ -58,43 +58,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(session);
         
         if (session?.user) {
-          await loadUserData(session.user);
+          // Use setTimeout to prevent potential deadlocks
+          setTimeout(async () => {
+            if (mounted) {
+              await loadUserData(session.user);
+            }
+          }, 0);
         } else {
           setUser(null);
           setRestaurant(null);
         }
-        
-        if (mounted) {
-          setIsLoading(false);
-        }
       }
     );
-
-    // Check for existing session
-    const initializeAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (!mounted) return;
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          setIsLoading(false);
-          return;
-        }
-        
-        setSession(session);
-        if (session?.user) {
-          await loadUserData(session.user);
-        }
-      } catch (error) {
-        console.error('Initialize auth error:', error);
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
 
     initializeAuth();
 
@@ -106,17 +81,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const loadUserData = async (authUser: User) => {
     try {
-      console.log('Loading user data for:', authUser.id);
-      
-      // Check if user is a super admin
+      // Check if user is a super admin first
       const { data: superAdmin } = await supabase
         .from('super_admins')
         .select('*')
         .eq('id', authUser.id)
-        .single();
+        .maybeSingle();
 
       if (superAdmin) {
-        console.log('User is super admin');
         setUser({
           id: superAdmin.id,
           email: superAdmin.email,
@@ -128,19 +100,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       // Check if user is in users table
-      const { data: userData, error: userError } = await supabase
+      const { data: userData } = await supabase
         .from('users')
-        .select('*, restaurants(*)')
+        .select('*')
         .eq('id', authUser.id)
-        .single();
-
-      if (userError) {
-        console.error('Error loading user data:', userError);
-        return;
-      }
+        .maybeSingle();
 
       if (userData) {
-        console.log('User data loaded:', userData);
         setUser({
           id: userData.id,
           email: userData.email,
@@ -158,7 +124,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             .from('restaurants')
             .select('*')
             .eq('id', userData.restaurant_id)
-            .single();
+            .maybeSingle();
 
           if (restaurantData) {
             setRestaurant({
@@ -191,10 +157,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const registerRestaurant = async (data: any): Promise<{ success: boolean; domain?: string; error?: string }> => {
     try {
-      // Clean up any existing auth state first
-      cleanupAuthState();
-      await supabase.auth.signOut({ scope: 'global' });
-      
       const domain = generateDomain(data.restaurantName);
       
       // Check domain uniqueness
@@ -208,17 +170,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: `Domain "${domain}" already exists. Please choose a different restaurant name.` };
       }
 
-      // Create admin user account with email confirmation disabled
+      // Create admin user account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.adminEmail,
         password: data.adminPassword,
         options: {
-          emailRedirectTo: undefined // Disable email confirmation
+          emailRedirectTo: `${window.location.origin}/login`
         }
       });
 
       if (authError) {
-        console.error('Auth error:', authError);
         if (authError.message.includes('already registered')) {
           return { success: false, error: `Email "${data.adminEmail}" already exists. Please use a different email.` };
         }
@@ -228,8 +189,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (!authData.user) {
         return { success: false, error: 'Failed to create user account' };
       }
-
-      console.log('User created, creating restaurant...');
 
       // Create restaurant
       const { data: restaurantData, error: restaurantError } = await supabase
@@ -247,11 +206,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .single();
 
       if (restaurantError) {
-        console.error('Restaurant creation error:', restaurantError);
         return { success: false, error: restaurantError.message };
       }
-
-      console.log('Restaurant created, creating user profile...');
 
       // Create user profile
       const { error: userError } = await supabase
@@ -266,11 +222,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
       if (userError) {
-        console.error('User profile creation error:', userError);
         return { success: false, error: userError.message };
       }
 
-      console.log('Registration completed successfully');
       return { success: true, domain };
     } catch (error) {
       console.error('Registration error:', error);
@@ -280,17 +234,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const createSuperAdmin = async (email: string, password: string, name: string): Promise<boolean> => {
     try {
-      console.log('Creating super admin with email:', email);
-      
-      // Clean up any existing auth state first
-      cleanupAuthState();
-      await supabase.auth.signOut({ scope: 'global' });
-
-      // For super admin, we'll use a direct database approach first
-      const adminId = crypto.randomUUID();
       const formattedEmail = email.includes('@') ? email : `${email}@admin.local`;
       
-      // Insert directly into super_admins table with a generated ID
+      // Try direct database insert first (for cases where auth signup might fail)
+      const adminId = crypto.randomUUID();
+      
       const { error: directError } = await supabase
         .from('super_admins')
         .insert({
@@ -300,7 +248,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
       if (!directError) {
-        console.log('Super admin created directly');
         return true;
       }
 
@@ -309,24 +256,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         email: formattedEmail,
         password,
         options: {
-          emailRedirectTo: undefined,
-          data: {
-            skip_email_validation: true
-          }
+          emailRedirectTo: `${window.location.origin}/admin`
         }
       });
 
-      if (authError) {
-        console.error('Super admin auth error:', authError);
+      if (authError || !authData.user) {
         return false;
       }
-
-      if (!authData.user) {
-        console.log('No user created');
-        return false;
-      }
-
-      console.log('Auth user created, creating super admin profile...');
 
       // Create super admin profile
       const { error: profileError } = await supabase
@@ -337,13 +273,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           name
         });
 
-      if (profileError) {
-        console.error('Super admin profile error:', profileError);
-        return false;
-      }
-
-      console.log('Super admin created successfully');
-      return true;
+      return !profileError;
     } catch (error) {
       console.error('Super admin creation failed:', error);
       return false;
@@ -352,23 +282,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const loginSuperAdmin = async (email: string, password: string): Promise<boolean> => {
     try {
-      console.log('Super admin login attempt for:', email);
-      
-      // Clean up auth state before login
-      cleanupAuthState();
-      
       const formattedEmail = email.includes('@') ? email : `${email}@admin.local`;
       
-      // Try to find super admin by email directly first
+      // Try to find super admin by email first
       const { data: superAdmin } = await supabase
         .from('super_admins')
         .select('*')
         .or(`email.eq.${email},email.eq.${formattedEmail}`)
-        .single();
+        .maybeSingle();
 
       if (superAdmin) {
-        console.log('Super admin found, setting user data');
-        // Set user data manually
+        // Set user data manually for direct login
         setUser({
           id: superAdmin.id,
           email: superAdmin.email,
@@ -376,18 +300,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           role: 'super_admin',
           createdAt: superAdmin.created_at
         });
-        setIsLoading(false);
         return true;
       }
 
-      // If not found directly, try auth login
+      // Try auth login
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formattedEmail,
         password
       });
 
       if (error || !data.user) {
-        console.log('Auth failed:', error?.message);
         return false;
       }
 
@@ -396,7 +318,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .from('super_admins')
         .select('id')
         .eq('id', data.user.id)
-        .single();
+        .maybeSingle();
 
       return !!authSuperAdmin;
     } catch (error) {
@@ -407,9 +329,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (email: string, password: string, domain: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      console.log('Login attempt:', { email, domain });
-
-      // First, check if domain exists
+      // Check if domain exists
       const { data: restaurantData, error: domainError } = await supabase
         .from('restaurants')
         .select('id')
@@ -417,16 +337,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .maybeSingle();
 
       if (domainError) {
-        console.error('Domain lookup error:', domainError);
         return { success: false, error: 'Database error during login. Please try again.' };
       }
 
       if (!restaurantData) {
-        console.log('Domain not found:', domain);
         return { success: false, error: `Domain "${domain}" not found. Please check your restaurant domain.` };
       }
-
-      console.log('Domain found, attempting auth...');
 
       // Attempt authentication
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -435,15 +351,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (authError) {
-        console.error('Auth error:', authError);
         if (authError.message.includes('Invalid login credentials')) {
           return { success: false, error: 'Invalid email or password. Please check your credentials.' };
         }
-        // Ignore email confirmation errors and proceed
-        if (authError.message.includes('email_not_confirmed') || authError.message.includes('Email not confirmed')) {
-          console.log('Ignoring email confirmation requirement');
-          // Don't return error for email confirmation - just continue
-        } else {
+        // Ignore email confirmation errors
+        if (!authError.message.includes('email_not_confirmed') && !authError.message.includes('Email not confirmed')) {
           return { success: false, error: authError.message };
         }
       }
@@ -451,8 +363,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (!authData.user) {
         return { success: false, error: 'Authentication failed. Please try again.' };
       }
-
-      console.log('Auth successful, verifying user belongs to restaurant...');
 
       // Verify user belongs to this restaurant
       const { data: userData, error: userError } = await supabase
@@ -462,21 +372,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .maybeSingle();
 
       if (userError) {
-        console.error('User verification error:', userError);
         return { success: false, error: 'User verification failed. Please contact support.' };
       }
 
       if (!userData) {
-        console.log('User profile not found');
         return { success: false, error: 'User profile not found. Please contact support.' };
       }
 
       if (userData.restaurant_id !== restaurantData.id) {
-        console.log('User does not belong to this restaurant');
         return { success: false, error: `This account is not associated with domain "${domain}". Please check your domain.` };
       }
 
-      console.log('Login successful');
       return { success: true };
     } catch (error) {
       console.error('Login failed:', error);
@@ -486,8 +392,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     try {
-      cleanupAuthState();
-      await supabase.auth.signOut({ scope: 'global' });
+      await supabase.auth.signOut();
       setUser(null);
       setSession(null);
       setRestaurant(null);
