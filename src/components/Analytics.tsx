@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
-import { TrendingUp, DollarSign, ShoppingBag, Users, Calendar, BarChart3, PieChart, Activity } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingBag, Users, Calendar, BarChart3, PieChart, Activity, Clock } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../integrations/supabase/client';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart as RechartsPieChart, Cell } from 'recharts';
@@ -323,7 +322,7 @@ export const Analytics = () => {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <RechartsPieChart>
-                <Pie
+                <PieChart
                   data={analytics.ordersByStatus}
                   cx="50%"
                   cy="50%"
@@ -336,7 +335,7 @@ export const Analytics = () => {
                   {analytics.ordersByStatus.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
-                </Pie>
+                </PieChart>
                 <Tooltip />
               </RechartsPieChart>
             </ResponsiveContainer>
