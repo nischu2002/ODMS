@@ -2,37 +2,57 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
-import { Plus, ChefHat, Truck, Clock, DollarSign } from 'lucide-react';
+import { ChefHat, Clock, DollarSign, ShoppingBag, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
-import { Order, OrderItem } from '../types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from './ui/table';
+import { Badge } from './ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
+
+interface Order {
+  id: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_address: string;
+  total_amount: number;
+  status: string;
+  payment_status: string;
+  created_at: string;
+  order_items?: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
+}
 
 export const StaffDashboard = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [showNewOrder, setShowNewOrder] = useState(false);
-  const [newOrder, setNewOrder] = useState({
-    customerName: '',
-    customerPhone: '',
-    customerAddress: '',
-    items: [{ id: 'temp-1', name: '', quantity: 1, price: 0 }] as OrderItem[]
-  });
   const { restaurant, user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (restaurant) {
-      loadOrders();
-    }
-  }, [restaurant]);
-
-  const loadOrders = async () => {
-    if (!restaurant) return;
-    
-    try {
-      const { data: ordersData, error } = await supabase
+  // Fetch orders for the restaurant
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ['staff-orders', restaurant?.id],
+    queryFn: async () => {
+      if (!restaurant?.id) return [];
+      
+      const { data, error } = await supabase
         .from('orders')
         .select(`
           *,
@@ -42,175 +62,92 @@ export const StaffDashboard = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      return data as Order[];
+    },
+    enabled: !!restaurant?.id,
+    refetchInterval: 10000 // Refresh every 10 seconds
+  });
 
-      const formattedOrders: Order[] = ordersData?.map(order => ({
-        id: order.id,
-        restaurantId: order.restaurant_id,
-        customerName: order.customer_name,
-        customerPhone: order.customer_phone,
-        customerAddress: order.customer_address,
-        totalAmount: order.total_amount,
-        status: order.status as Order['status'],
-        paymentStatus: order.payment_status as Order['paymentStatus'],
-        assignedStaffId: order.assigned_staff_id || undefined,
-        assignedRiderId: order.assigned_rider_id || undefined,
-        createdAt: order.created_at,
-        estimatedDeliveryTime: order.estimated_delivery_time || undefined,
-        items: (order.order_items as any[])?.map(item => ({
-          id: item.id,
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price
-        })) || []
-      })) || [];
-
-      setOrders(formattedOrders);
-    } catch (error) {
-      console.error('Error loading orders:', error);
-      toast({ 
-        title: "Error loading orders", 
-        description: "Failed to load orders",
-        variant: "destructive" 
-      });
-    }
-  };
-
-  const createOrder = async () => {
-    if (!restaurant || !user) return;
-
-    try {
-      const totalAmount = newOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      
-      // Create order
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          restaurant_id: restaurant.id,
-          customer_name: newOrder.customerName,
-          customer_phone: newOrder.customerPhone,
-          customer_address: newOrder.customerAddress,
-          total_amount: totalAmount,
-          status: 'pending',
-          payment_status: 'pending'
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Create order items
-      const orderItems = newOrder.items.map(item => ({
-        order_id: orderData.id,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price
-      }));
-
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
-
-      if (itemsError) throw itemsError;
-
-      // Reset form
-      setNewOrder({
-        customerName: '',
-        customerPhone: '',
-        customerAddress: '',
-        items: [{ id: 'temp-1', name: '', quantity: 1, price: 0 }]
-      });
-      setShowNewOrder(false);
-      
-      // Reload orders
-      await loadOrders();
-      
-      toast({ title: "Order created successfully" });
-    } catch (error) {
-      console.error('Error creating order:', error);
-      toast({ 
-        title: "Error creating order", 
-        description: "Failed to create order",
-        variant: "destructive" 
-      });
-    }
-  };
-
-  const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('id', orderId);
-
-      if (error) throw error;
-
-      await loadOrders();
-      toast({ title: `Order ${newStatus}` });
-    } catch (error) {
-      console.error('Error updating order status:', error);
-      toast({ 
-        title: "Error updating order", 
-        description: "Failed to update order status",
-        variant: "destructive" 
-      });
-    }
-  };
-
-  const assignToKitchen = (orderId: string) => {
-    updateOrderStatus(orderId, 'confirmed');
-  };
-
-  const assignRider = async (orderId: string, riderId: string) => {
-    try {
+  // Update order status mutation
+  const updateOrderMutation = useMutation({
+    mutationFn: async ({ orderId, newStatus }: { orderId: string; newStatus: string }) => {
       const { error } = await supabase
         .from('orders')
         .update({ 
-          assigned_rider_id: riderId,
-          status: 'assigned'
+          status: newStatus,
+          assigned_staff_id: user?.id 
         })
         .eq('id', orderId);
 
       if (error) throw error;
 
-      await loadOrders();
-      toast({ title: "Rider assigned successfully" });
-    } catch (error) {
-      console.error('Error assigning rider:', error);
-      toast({ 
-        title: "Error assigning rider", 
-        description: "Failed to assign rider",
-        variant: "destructive" 
+      // Log status change
+      await supabase.from('order_status_history').insert({
+        order_id: orderId,
+        new_status: newStatus,
+        changed_by: user?.id
       });
+
+      // Log analytics event
+      if (newStatus === 'delivered') {
+        const order = orders.find(o => o.id === orderId);
+        if (order) {
+          await supabase.from('analytics_events').insert({
+            restaurant_id: restaurant?.id,
+            event_type: 'order_completed',
+            event_data: { order_id: orderId, total_amount: order.total_amount }
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['staff-orders', restaurant?.id] });
+      toast({ title: "Order status updated successfully" });
+    },
+    onError: (error) => {
+      console.error('Error updating order status:', error);
+      toast({ title: "Error updating order status", variant: "destructive" });
     }
-  };
+  });
 
-  const addOrderItem = () => {
-    const newItemId = `temp-${Date.now()}`;
-    setNewOrder({
-      ...newOrder,
-      items: [...newOrder.items, { id: newItemId, name: '', quantity: 1, price: 0 }]
-    });
-  };
-
-  const updateOrderItem = (index: number, field: keyof OrderItem, value: any) => {
-    const updatedItems = newOrder.items.map((item, i) => 
-      i === index ? { ...item, [field]: value } : item
-    );
-    setNewOrder({ ...newOrder, items: updatedItems });
-  };
-
+  // Calculate metrics
   const pendingOrders = orders.filter(o => o.status === 'pending');
   const preparingOrders = orders.filter(o => o.status === 'preparing');
   const readyOrders = orders.filter(o => o.status === 'ready');
+  const completedToday = orders.filter(o => 
+    o.status === 'delivered' && 
+    new Date(o.created_at).toDateString() === new Date().toDateString()
+  );
+
+  const todayRevenue = completedToday.reduce((sum, order) => sum + Number(order.total_amount), 0);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'confirmed': return 'bg-blue-100 text-blue-800';
+      case 'preparing': return 'bg-orange-100 text-orange-800';
+      case 'ready': return 'bg-green-100 text-green-800';
+      case 'assigned': return 'bg-purple-100 text-purple-800';
+      case 'delivered': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const handleStatusUpdate = (orderId: string, newStatus: string) => {
+    updateOrderMutation.mutate({ orderId, newStatus });
+  };
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center p-8">Loading orders...</div>;
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Staff Dashboard</h1>
-        <Button onClick={() => setShowNewOrder(true)} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          New Order
-        </Button>
+        <div className="text-sm text-gray-600">
+          Welcome back! Manage orders and kitchen operations.
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -218,18 +155,18 @@ export const StaffDashboard = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{pendingOrders.length}</div>
-            <p className="text-xs text-muted-foreground">Need kitchen assignment</p>
+            <p className="text-xs text-muted-foreground">Need attention</p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">In Kitchen</CardTitle>
-            <ChefHat className="h-4 w-4 text-muted-foreground" />
+            <ChefHat className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{preparingOrders.length}</div>
@@ -240,153 +177,140 @@ export const StaffDashboard = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Ready for Delivery</CardTitle>
-            <Truck className="h-4 w-4 text-muted-foreground" />
+            <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{readyOrders.length}</div>
-            <p className="text-xs text-muted-foreground">Need rider assignment</p>
+            <p className="text-xs text-muted-foreground">Awaiting pickup</p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{orders.length}</div>
-            <p className="text-xs text-muted-foreground">All time</p>
+            <div className="text-2xl font-bold">${todayRevenue.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">{completedToday.length} orders completed</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* New Order Form */}
-      {showNewOrder && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Create New Order</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="customerName">Customer Name</Label>
-                  <Input
-                    id="customerName"
-                    value={newOrder.customerName}
-                    onChange={(e) => setNewOrder({...newOrder, customerName: e.target.value})}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="customerPhone">Phone</Label>
-                  <Input
-                    id="customerPhone"
-                    value={newOrder.customerPhone}
-                    onChange={(e) => setNewOrder({...newOrder, customerPhone: e.target.value})}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="customerAddress">Address</Label>
-                  <Input
-                    id="customerAddress"
-                    value={newOrder.customerAddress}
-                    onChange={(e) => setNewOrder({...newOrder, customerAddress: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label>Order Items</Label>
-                {newOrder.items.map((item, index) => (
-                  <div key={item.id} className="grid grid-cols-4 gap-2 mt-2">
-                    <Input
-                      placeholder="Item name"
-                      value={item.name}
-                      onChange={(e) => updateOrderItem(index, 'name', e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Qty"
-                      value={item.quantity}
-                      onChange={(e) => updateOrderItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Price"
-                      value={item.price}
-                      onChange={(e) => updateOrderItem(index, 'price', parseFloat(e.target.value) || 0)}
-                    />
-                    <Button type="button" variant="outline" onClick={addOrderItem}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="flex gap-2">
-                <Button onClick={createOrder}>Create Order</Button>
-                <Button variant="outline" onClick={() => setShowNewOrder(false)}>Cancel</Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Orders List */}
+      {/* Priority Orders */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Orders</CardTitle>
-          <CardDescription>Manage order status and assignments</CardDescription>
+          <CardTitle>Priority Orders</CardTitle>
+          <CardDescription>Orders that need immediate attention</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {orders.slice(0, 10).map((order) => (
-              <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
+            {pendingOrders.slice(0, 3).map((order) => (
+              <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50">
                 <div className="flex-1">
-                  <h3 className="font-medium">{order.id}</h3>
-                  <p className="text-sm text-gray-600">{order.customerName} - {order.customerPhone}</p>
-                  <p className="text-sm text-gray-600">{order.items.length} items - ${order.totalAmount}</p>
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                    order.status === 'preparing' ? 'bg-orange-100 text-orange-800' :
-                    order.status === 'ready' ? 'bg-green-100 text-green-800' :
-                    'bg-purple-100 text-purple-800'
-                  }`}>
-                    {order.status}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
+                    <div>
+                      <h3 className="font-medium">{order.customer_name}</h3>
+                      <p className="text-sm text-gray-600">{order.customer_phone}</p>
+                      <p className="text-sm text-gray-600">{order.order_items?.length || 0} items - ${order.total_amount}</p>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {order.status === 'pending' && (
-                    <Button size="sm" onClick={() => assignToKitchen(order.id)}>
-                      Send to Kitchen
-                    </Button>
-                  )}
-                  {order.status === 'confirmed' && (
-                    <Button size="sm" onClick={() => updateOrderStatus(order.id, 'preparing')}>
-                      Start Preparing
-                    </Button>
-                  )}
-                  {order.status === 'preparing' && (
-                    <Button size="sm" onClick={() => updateOrderStatus(order.id, 'ready')}>
-                      Mark Ready
-                    </Button>
-                  )}
-                  {order.status === 'ready' && (
-                    <Button size="sm" onClick={() => updateOrderStatus(order.id, 'assigned')}>
-                      Assign Rider
-                    </Button>
-                  )}
+                  <Badge className="bg-yellow-100 text-yellow-800">
+                    {Math.floor((new Date().getTime() - new Date(order.created_at).getTime()) / (1000 * 60))} min ago
+                  </Badge>
+                  <Button 
+                    size="sm" 
+                    onClick={() => handleStatusUpdate(order.id, 'confirmed')}
+                    disabled={updateOrderMutation.isPending}
+                  >
+                    Confirm Order
+                  </Button>
                 </div>
               </div>
             ))}
-            {orders.length === 0 && (
-              <p className="text-center text-gray-500 py-8">No orders yet</p>
+            {pendingOrders.length === 0 && (
+              <p className="text-center text-gray-500 py-8">No pending orders</p>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* All Orders */}
+      <Card>
+        <CardHeader>
+          <CardTitle>All Orders</CardTitle>
+          <CardDescription>Manage and track all restaurant orders</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Order ID</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Items</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Time</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {orders.slice(0, 10).map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell className="font-mono text-sm">{order.id.slice(0, 8)}</TableCell>
+                  <TableCell>
+                    <div>
+                      <div className="font-medium">{order.customer_name}</div>
+                      <div className="text-sm text-gray-500">{order.customer_phone}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div>
+                      <div className="font-medium">{order.order_items?.length || 0} items</div>
+                      <div className="text-sm text-gray-500">
+                        {order.order_items?.slice(0, 2).map(item => item.name).join(', ')}
+                        {(order.order_items?.length || 0) > 2 && '...'}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium">${order.total_amount}</TableCell>
+                  <TableCell>
+                    <Badge className={getStatusColor(order.status)}>
+                      {order.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-500">
+                    {new Date(order.created_at).toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={order.status}
+                      onValueChange={(status) => handleStatusUpdate(order.id, status)}
+                      disabled={updateOrderMutation.isPending}
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="confirmed">Confirmed</SelectItem>
+                        <SelectItem value="preparing">Preparing</SelectItem>
+                        <SelectItem value="ready">Ready</SelectItem>
+                        <SelectItem value="assigned">Assigned</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {orders.length === 0 && (
+            <p className="text-center text-gray-500 py-8">No orders yet</p>
+          )}
         </CardContent>
       </Card>
     </div>
