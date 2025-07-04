@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit, Truck, User, Mail, Phone, MapPin } from 'lucide-react';
+import { Plus, Edit, Truck, User, Mail, Phone, MapPin, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -31,13 +31,15 @@ interface Rider {
 export const RiderManagement = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingRider, setEditingRider] = useState<Rider | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
+    password: '',
     vehicleType: 'bike'
   });
-  const { restaurant } = useAuth();
+  const { restaurant, createRiderAccount } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -63,38 +65,26 @@ export const RiderManagement = () => {
   // Create rider mutation
   const createRiderMutation = useMutation({
     mutationFn: async (riderData: any) => {
-      if (!restaurant?.id) throw new Error('Restaurant not found');
-
-      const { data, error } = await supabase
-        .from('users')
-        .insert({
-          restaurant_id: restaurant.id,
-          name: riderData.name,
-          email: riderData.email,
-          phone: riderData.phone,
-          role: 'rider',
-          is_active: true
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      const result = await createRiderAccount(riderData);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create rider account');
+      }
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['restaurant-riders', restaurant?.id] });
-      toast({ title: "Rider added successfully" });
+      toast({ title: "Rider added successfully", description: "Login credentials have been created." });
       resetForm();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error creating rider:', error);
-      toast({ title: "Error adding rider", variant: "destructive" });
+      toast({ title: "Error adding rider", description: error.message, variant: "destructive" });
     }
   });
 
   // Update rider mutation
   const updateRiderMutation = useMutation({
-    mutationFn: async ({ id, ...riderData }: Rider) => {
+    mutationFn: async ({ id, ...riderData }: any) => {
       const { data, error } = await supabase
         .from('users')
         .update({
@@ -141,9 +131,10 @@ export const RiderManagement = () => {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', vehicleType: 'bike' });
+    setFormData({ name: '', email: '', phone: '', password: '', vehicleType: 'bike' });
     setShowAddForm(false);
     setEditingRider(null);
+    setShowPassword(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -152,6 +143,15 @@ export const RiderManagement = () => {
     if (editingRider) {
       updateRiderMutation.mutate({ ...editingRider, ...formData });
     } else {
+      // Validate password for new rider
+      if (!formData.password || formData.password.length < 6) {
+        toast({
+          title: "Password Required",
+          description: "Password must be at least 6 characters long.",
+          variant: "destructive"
+        });
+        return;
+      }
       createRiderMutation.mutate(formData);
     }
   };
@@ -162,6 +162,7 @@ export const RiderManagement = () => {
       name: rider.name,
       email: rider.email,
       phone: rider.phone || '',
+      password: '', // Don't prefill password
       vehicleType: 'bike'
     });
     setShowAddForm(true);
@@ -189,12 +190,15 @@ export const RiderManagement = () => {
         <Card>
           <CardHeader>
             <CardTitle>{editingRider ? 'Edit Rider' : 'Add New Rider'}</CardTitle>
+            <CardDescription>
+              {editingRider ? 'Update rider information' : 'Create a new rider account with login credentials'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="name">Full Name *</Label>
                   <Input
                     id="name"
                     value={formData.name}
@@ -203,7 +207,7 @@ export const RiderManagement = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email *</Label>
                   <Input
                     id="email"
                     type="email"
@@ -216,7 +220,7 @@ export const RiderManagement = () => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="phone">Phone</Label>
+                  <Label htmlFor="phone">Phone *</Label>
                   <Input
                     id="phone"
                     value={formData.phone}
@@ -240,6 +244,38 @@ export const RiderManagement = () => {
                 </div>
               </div>
 
+              {!editingRider && (
+                <div>
+                  <Label htmlFor="password">Password *</Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      required
+                      minLength={6}
+                      placeholder="Minimum 6 characters"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {!editingRider && (
+                <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                  <strong>Note:</strong> The rider will receive login credentials and can use them to access the delivery system.
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <Button 
                   type="submit" 
@@ -247,7 +283,7 @@ export const RiderManagement = () => {
                 >
                   {createRiderMutation.isPending || updateRiderMutation.isPending 
                     ? 'Saving...' 
-                    : editingRider ? 'Update Rider' : 'Add Rider'
+                    : editingRider ? 'Update Rider' : 'Create Rider Account'
                   }
                 </Button>
                 <Button type="button" variant="outline" onClick={resetForm}>
@@ -316,7 +352,7 @@ export const RiderManagement = () => {
             </TableBody>
           </Table>
           {riders.length === 0 && (
-            <p className="text-center text-gray-500 py-8">No riders yet</p>
+            <p className="text-center text-gray-500 py-8">No riders yet. Add your first rider to get started.</p>
           )}
         </CardContent>
       </Card>

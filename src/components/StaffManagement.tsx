@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit, Trash2, User, Mail, Phone } from 'lucide-react';
+import { Plus, Edit, User, Mail, Phone, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -31,13 +31,15 @@ interface StaffMember {
 export const StaffManagement = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
+    password: '',
     role: 'restaurant_staff'
   });
-  const { restaurant } = useAuth();
+  const { restaurant, createStaffAccount } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -63,47 +65,32 @@ export const StaffManagement = () => {
   // Create staff mutation
   const createStaffMutation = useMutation({
     mutationFn: async (staffData: any) => {
-      if (!restaurant?.id) throw new Error('Restaurant not found');
-
-      // For now, we'll just create the user record without auth
-      // In a real app, you'd want to handle user authentication separately
-      const { data, error } = await supabase
-        .from('users')
-        .insert({
-          restaurant_id: restaurant.id,
-          name: staffData.name,
-          email: staffData.email,
-          phone: staffData.phone,
-          role: 'restaurant_staff',
-          is_active: true
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      const result = await createStaffAccount(staffData);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create staff account');
+      }
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['restaurant-staff', restaurant?.id] });
-      toast({ title: "Staff member added successfully" });
+      toast({ title: "Staff member added successfully", description: "Login credentials have been created." });
       resetForm();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error creating staff:', error);
-      toast({ title: "Error adding staff member", variant: "destructive" });
+      toast({ title: "Error adding staff member", description: error.message, variant: "destructive" });
     }
   });
 
   // Update staff mutation
   const updateStaffMutation = useMutation({
-    mutationFn: async ({ id, ...staffData }: StaffMember) => {
+    mutationFn: async ({ id, ...staffData }: any) => {
       const { data, error } = await supabase
         .from('users')
         .update({
           name: staffData.name,
           email: staffData.email,
-          phone: staffData.phone,
-          role: staffData.role
+          phone: staffData.phone
         })
         .eq('id', id)
         .select()
@@ -144,9 +131,10 @@ export const StaffManagement = () => {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', role: 'restaurant_staff' });
+    setFormData({ name: '', email: '', phone: '', password: '', role: 'restaurant_staff' });
     setShowAddForm(false);
     setEditingStaff(null);
+    setShowPassword(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -155,6 +143,15 @@ export const StaffManagement = () => {
     if (editingStaff) {
       updateStaffMutation.mutate({ ...editingStaff, ...formData });
     } else {
+      // Validate password for new staff
+      if (!formData.password || formData.password.length < 6) {
+        toast({
+          title: "Password Required",
+          description: "Password must be at least 6 characters long.",
+          variant: "destructive"
+        });
+        return;
+      }
       createStaffMutation.mutate(formData);
     }
   };
@@ -165,6 +162,7 @@ export const StaffManagement = () => {
       name: staff.name,
       email: staff.email,
       phone: staff.phone || '',
+      password: '', // Don't prefill password
       role: staff.role
     });
     setShowAddForm(true);
@@ -192,12 +190,15 @@ export const StaffManagement = () => {
         <Card>
           <CardHeader>
             <CardTitle>{editingStaff ? 'Edit Staff Member' : 'Add New Staff Member'}</CardTitle>
+            <CardDescription>
+              {editingStaff ? 'Update staff member information' : 'Create a new staff account with login credentials'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="name">Full Name *</Label>
                   <Input
                     id="name"
                     value={formData.name}
@@ -206,7 +207,7 @@ export const StaffManagement = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email *</Label>
                   <Input
                     id="email"
                     type="email"
@@ -226,20 +227,38 @@ export const StaffManagement = () => {
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="role">Role</Label>
-                  <select
-                    id="role"
-                    value={formData.role}
-                    onChange={(e) => setFormData({...formData, role: e.target.value})}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  >
-                    <option value="restaurant_staff">Kitchen Staff</option>
-                    <option value="restaurant_staff">Server</option>
-                    <option value="restaurant_staff">Manager</option>
-                  </select>
-                </div>
+                {!editingStaff && (
+                  <div>
+                    <Label htmlFor="password">Password *</Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        value={formData.password}
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                        required
+                        minLength={6}
+                        placeholder="Minimum 6 characters"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {!editingStaff && (
+                <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                  <strong>Note:</strong> The staff member will receive login credentials and can use them to access the system.
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <Button 
@@ -248,7 +267,7 @@ export const StaffManagement = () => {
                 >
                   {createStaffMutation.isPending || updateStaffMutation.isPending 
                     ? 'Saving...' 
-                    : editingStaff ? 'Update Staff Member' : 'Add Staff Member'
+                    : editingStaff ? 'Update Staff Member' : 'Create Staff Account'
                   }
                 </Button>
                 <Button type="button" variant="outline" onClick={resetForm}>
@@ -272,7 +291,6 @@ export const StaffManagement = () => {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
-                <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -283,7 +301,6 @@ export const StaffManagement = () => {
                   <TableCell className="font-medium">{member.name}</TableCell>
                   <TableCell>{member.email}</TableCell>
                   <TableCell>{member.phone || 'N/A'}</TableCell>
-                  <TableCell className="capitalize">{member.role.replace('_', ' ')}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded-full text-xs ${
                       member.is_active 
@@ -319,7 +336,7 @@ export const StaffManagement = () => {
             </TableBody>
           </Table>
           {staff.length === 0 && (
-            <p className="text-center text-gray-500 py-8">No staff members yet</p>
+            <p className="text-center text-gray-500 py-8">No staff members yet. Add your first staff member to get started.</p>
           )}
         </CardContent>
       </Card>

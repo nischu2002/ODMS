@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Loader2, Shield } from 'lucide-react';
+import { Loader2, Shield, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
 export default function SuperAdminLogin() {
@@ -15,10 +15,18 @@ export default function SuperAdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSignup, setIsSignup] = useState(false);
   const [name, setName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
-  const { loginSuperAdmin, createSuperAdmin } = useAuth();
+  const { loginSuperAdmin, createSuperAdmin, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Redirect if already logged in as super admin
+  React.useEffect(() => {
+    if (user && user.role === 'super_admin') {
+      navigate('/admin/dashboard');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +36,26 @@ export default function SuperAdminLogin() {
       let success = false;
       
       if (isSignup) {
+        if (!name.trim()) {
+          toast({
+            title: "Name required",
+            description: "Please enter your full name.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        if (password.length < 6) {
+          toast({
+            title: "Password too short",
+            description: "Password must be at least 6 characters long.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+
         console.log('Creating super admin account...');
         success = await createSuperAdmin(email, password, name);
         if (success) {
@@ -35,7 +63,7 @@ export default function SuperAdminLogin() {
             title: "Super Admin account created",
             description: "Account created successfully! You can now sign in.",
           });
-          setIsSignup(false); // Switch to login mode
+          setIsSignup(false);
           setEmail('');
           setPassword('');
           setName('');
@@ -54,7 +82,7 @@ export default function SuperAdminLogin() {
             title: "Login successful",
             description: "Welcome back, Super Admin!",
           });
-          navigate('/admin/dashboard');
+          // Navigate will happen via useEffect when user state updates
         } else {
           toast({
             title: "Login failed",
@@ -89,7 +117,7 @@ export default function SuperAdminLogin() {
             {isSignup ? 'Create Super Admin Account' : 'ODMS System Administration'}
           </CardDescription>
           <div className="text-xs text-gray-500 mt-2">
-            {isSignup ? 'Any email format accepted' : 'Use any email format (@ symbol optional)'}
+            {isSignup ? 'Create your admin account' : 'Use your admin credentials to access the system'}
           </div>
         </CardHeader>
         
@@ -97,7 +125,7 @@ export default function SuperAdminLogin() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {isSignup && (
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name">Full Name *</Label>
                 <Input
                   id="name"
                   type="text"
@@ -110,30 +138,42 @@ export default function SuperAdminLogin() {
             )}
             
             <div className="space-y-2">
-              <Label htmlFor="email">Email / Username</Label>
+              <Label htmlFor="email">Email / Username *</Label>
               <Input
                 id="email"
                 type="text"
-                placeholder="Enter email or username (@ optional)"
+                placeholder="Enter email or username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
-              <div className="text-xs text-gray-500">
-                You can use any format: admin, admin@domain.com, etc.
-              </div>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <Label htmlFor="password">Password *</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={isSignup ? 6 : undefined}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              {isSignup && (
+                <p className="text-xs text-gray-500">Minimum 6 characters</p>
+              )}
             </div>
             
             <Button type="submit" className="w-full bg-red-600 hover:bg-red-700" disabled={isLoading}>
@@ -156,8 +196,10 @@ export default function SuperAdminLogin() {
                 setEmail('');
                 setPassword('');
                 setName('');
+                setShowPassword(false);
               }}
               className="text-red-600"
+              disabled={isLoading}
             >
               {isSignup ? 'Already have an account? Sign In' : 'Need to create an account? Sign Up'}
             </Button>

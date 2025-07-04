@@ -14,6 +14,8 @@ interface AuthContextType {
   isLoading: boolean;
   createSuperAdmin: (email: string, password: string, name: string) => Promise<boolean>;
   registerRestaurant: (data: any) => Promise<{ success: boolean; domain?: string; error?: string }>;
+  createStaffAccount: (data: any) => Promise<{ success: boolean; error?: string }>;
+  createRiderAccount: (data: any) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,7 +31,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const initializeAuth = async () => {
       try {
-        // Get initial session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         if (!mounted) return;
@@ -49,7 +50,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // Set up auth listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
@@ -58,7 +58,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(session);
         
         if (session?.user) {
-          // Use setTimeout to prevent potential deadlocks
           setTimeout(async () => {
             if (mounted) {
               await loadUserData(session.user);
@@ -159,7 +158,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const domain = generateDomain(data.restaurantName);
       
-      // Check domain uniqueness
       const { data: existingRestaurant } = await supabase
         .from('restaurants')
         .select('id')
@@ -170,7 +168,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: `Domain "${domain}" already exists. Please choose a different restaurant name.` };
       }
 
-      // Create admin user account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.adminEmail,
         password: data.adminPassword,
@@ -190,7 +187,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: 'Failed to create user account' };
       }
 
-      // Create restaurant
       const { data: restaurantData, error: restaurantError } = await supabase
         .from('restaurants')
         .insert({
@@ -209,7 +205,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: restaurantError.message };
       }
 
-      // Create user profile
       const { error: userError } = await supabase
         .from('users')
         .insert({
@@ -232,26 +227,104 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const createStaffAccount = async (data: any): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (!restaurant?.id) {
+        return { success: false, error: 'Restaurant not found' };
+      }
+
+      // Create auth account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`
+        }
+      });
+
+      if (authError) {
+        return { success: false, error: authError.message };
+      }
+
+      if (!authData.user) {
+        return { success: false, error: 'Failed to create auth account' };
+      }
+
+      // Create user profile
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          restaurant_id: restaurant.id,
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          role: 'restaurant_staff',
+          is_active: true
+        });
+
+      if (userError) {
+        return { success: false, error: userError.message };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error creating staff account:', error);
+      return { success: false, error: 'Failed to create staff account' };
+    }
+  };
+
+  const createRiderAccount = async (data: any): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (!restaurant?.id) {
+        return { success: false, error: 'Restaurant not found' };
+      }
+
+      // Create auth account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`
+        }
+      });
+
+      if (authError) {
+        return { success: false, error: authError.message };
+      }
+
+      if (!authData.user) {
+        return { success: false, error: 'Failed to create auth account' };
+      }
+
+      // Create user profile
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          restaurant_id: restaurant.id,
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          role: 'rider',
+          is_active: true
+        });
+
+      if (userError) {
+        return { success: false, error: userError.message };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error creating rider account:', error);
+      return { success: false, error: 'Failed to create rider account' };
+    }
+  };
+
   const createSuperAdmin = async (email: string, password: string, name: string): Promise<boolean> => {
     try {
       const formattedEmail = email.includes('@') ? email : `${email}@admin.local`;
       
-      // Try direct database insert first (for cases where auth signup might fail)
-      const adminId = crypto.randomUUID();
-      
-      const { error: directError } = await supabase
-        .from('super_admins')
-        .insert({
-          id: adminId,
-          email: formattedEmail,
-          name
-        });
-
-      if (!directError) {
-        return true;
-      }
-
-      // If direct insert fails, try auth creation
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formattedEmail,
         password,
@@ -264,7 +337,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
       }
 
-      // Create super admin profile
       const { error: profileError } = await supabase
         .from('super_admins')
         .insert({
@@ -284,26 +356,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const formattedEmail = email.includes('@') ? email : `${email}@admin.local`;
       
-      // Try to find super admin by email first
-      const { data: superAdmin } = await supabase
-        .from('super_admins')
-        .select('*')
-        .or(`email.eq.${email},email.eq.${formattedEmail}`)
-        .maybeSingle();
-
-      if (superAdmin) {
-        // Set user data manually for direct login
-        setUser({
-          id: superAdmin.id,
-          email: superAdmin.email,
-          name: superAdmin.name,
-          role: 'super_admin',
-          createdAt: superAdmin.created_at
-        });
-        return true;
-      }
-
-      // Try auth login
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formattedEmail,
         password
@@ -329,7 +381,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (email: string, password: string, domain: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Check if domain exists
       const { data: restaurantData, error: domainError } = await supabase
         .from('restaurants')
         .select('id')
@@ -344,7 +395,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: `Domain "${domain}" not found. Please check your restaurant domain.` };
       }
 
-      // Attempt authentication
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -354,7 +404,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (authError.message.includes('Invalid login credentials')) {
           return { success: false, error: 'Invalid email or password. Please check your credentials.' };
         }
-        // Ignore email confirmation errors
         if (!authError.message.includes('email_not_confirmed') && !authError.message.includes('Email not confirmed')) {
           return { success: false, error: authError.message };
         }
@@ -364,7 +413,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: 'Authentication failed. Please try again.' };
       }
 
-      // Verify user belongs to this restaurant
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('restaurant_id')
@@ -416,7 +464,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       logout, 
       isLoading, 
       createSuperAdmin,
-      registerRestaurant
+      registerRestaurant,
+      createStaffAccount,
+      createRiderAccount
     }}>
       {children}
     </AuthContext.Provider>

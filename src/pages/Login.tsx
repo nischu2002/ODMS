@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -6,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Loader2, Store, UserCog, Truck } from 'lucide-react';
+import { Loader2, Store, UserCog, Truck, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
 export default function Login() {
@@ -15,28 +16,34 @@ export default function Login() {
   const [domain, setDomain] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('admin');
+  const [showPassword, setShowPassword] = useState(false);
   
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    // Check if domain is provided in URL params
     const urlDomain = searchParams.get('domain');
     if (urlDomain) {
       setDomain(urlDomain);
-      setActiveTab('admin'); // Default to admin tab for domain-specific login
+      setActiveTab('admin');
     }
   }, [searchParams]);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      // Validate domain is provided
-      if (!domain) {
+      if (!domain.trim()) {
         toast({
           title: "Domain Required",
           description: "Please enter your restaurant domain.",
@@ -54,9 +61,7 @@ export default function Login() {
           title: "Login successful",
           description: "Welcome to ODMS!",
         });
-        
-        // Navigate to dashboard - AuthContext will handle role-based redirect
-        navigate('/dashboard');
+        // Navigation will happen via useEffect when user state updates
       } else {
         console.error('Login failed:', result.error);
         toast({
@@ -117,7 +122,7 @@ export default function Login() {
             
             <form onSubmit={handleSubmit} className="space-y-4 mt-6">
               <div className="space-y-2">
-                <Label htmlFor="domain">Restaurant Domain</Label>
+                <Label htmlFor="domain">Restaurant Domain *</Label>
                 <Input
                   id="domain"
                   type="text"
@@ -130,7 +135,7 @@ export default function Login() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email *</Label>
                 <Input
                   id="email"
                   type="email"
@@ -142,15 +147,26 @@ export default function Login() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                <Label htmlFor="password">Password *</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               
               <Button type="submit" className="w-full" disabled={isLoading}>
