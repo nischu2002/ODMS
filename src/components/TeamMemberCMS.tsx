@@ -11,7 +11,7 @@ import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ModernNavbar } from './ModernNavbar';
 import { ModernFooter } from './ModernFooter';
-import { ArrowLeft, Plus, Edit, Trash2, User, Upload } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, User, Upload, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
+import { Alert, AlertDescription } from './ui/alert';
 
 interface TeamMember {
   id: string;
@@ -51,6 +52,7 @@ export const TeamMemberCMS = ({ onClose }: TeamMemberCMSProps) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [tableExists, setTableExists] = useState(true);
   const [formData, setFormData] = useState<TeamMemberFormData>({
     name: '',
     position: '',
@@ -64,23 +66,42 @@ export const TeamMemberCMS = ({ onClose }: TeamMemberCMSProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch team members
-  const { data: teamMembers = [], isLoading } = useQuery({
+  // Fetch team members with error handling for missing table
+  const { data: teamMembers = [], isLoading, error } = useQuery({
     queryKey: ['team-members-cms'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('*')
-        .order('created_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('team_members')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data as TeamMember[];
-    }
+        if (error) {
+          console.error('Team members query error:', error);
+          if (error.message.includes('relation "public.team_members" does not exist')) {
+            setTableExists(false);
+            return [];
+          }
+          throw error;
+        }
+        setTableExists(true);
+        return data as TeamMember[];
+      } catch (error) {
+        console.error('Error fetching team members:', error);
+        setTableExists(false);
+        return [];
+      }
+    },
+    retry: false
   });
 
   // Create team member mutation
   const createMemberMutation = useMutation({
     mutationFn: async (memberData: Omit<TeamMemberFormData, 'id'>) => {
+      if (!tableExists) {
+        throw new Error('Team members table does not exist. Please run the database migration first.');
+      }
+
       const { error } = await supabase
         .from('team_members')
         .insert([memberData]);
@@ -103,6 +124,10 @@ export const TeamMemberCMS = ({ onClose }: TeamMemberCMSProps) => {
   // Update team member mutation
   const updateMemberMutation = useMutation({
     mutationFn: async ({ id, ...memberData }: Partial<TeamMemberFormData> & { id: string }) => {
+      if (!tableExists) {
+        throw new Error('Team members table does not exist. Please run the database migration first.');
+      }
+
       const { error } = await supabase
         .from('team_members')
         .update(memberData)
@@ -127,6 +152,10 @@ export const TeamMemberCMS = ({ onClose }: TeamMemberCMSProps) => {
   // Delete team member mutation
   const deleteMemberMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!tableExists) {
+        throw new Error('Team members table does not exist. Please run the database migration first.');
+      }
+
       const { error } = await supabase
         .from('team_members')
         .delete()
@@ -159,6 +188,15 @@ export const TeamMemberCMS = ({ onClose }: TeamMemberCMSProps) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!tableExists) {
+      toast({ 
+        title: "Database table missing", 
+        description: "Please run the database migration to create the team_members table",
+        variant: "destructive" 
+      });
+      return;
+    }
     
     if (editingMember) {
       updateMemberMutation.mutate({ id: editingMember.id, ...formData });
@@ -233,22 +271,42 @@ export const TeamMemberCMS = ({ onClose }: TeamMemberCMSProps) => {
                 className="flex items-center space-x-2"
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span>Back to Teams</span>
+                <span>Back to Dashboard</span>
               </Button>
               <h1 className="text-3xl font-bold text-gray-900">Team Member Management</h1>
             </div>
             <Button
               onClick={() => {
+                if (!tableExists) {
+                  toast({ 
+                    title: "Database table missing", 
+                    description: "Please run the database migration to create the team_members table",
+                    variant: "destructive" 
+                  });
+                  return;
+                }
                 resetForm();
                 setEditingMember(null);
                 setIsDialogOpen(true);
               }}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              disabled={!tableExists}
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Team Member
             </Button>
           </div>
+
+          {/* Warning Alert if table doesn't exist */}
+          {!tableExists && (
+            <Alert className="mb-8 border-orange-200 bg-orange-50">
+              <AlertTriangle className="h-4 w-4 text-orange-600" />
+              <AlertDescription className="text-orange-800">
+                <strong>Database Migration Required:</strong> The team_members table doesn't exist yet. 
+                Please run the database migration to create the table before managing team members.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Team Members List */}
           <Card>
@@ -259,6 +317,14 @@ export const TeamMemberCMS = ({ onClose }: TeamMemberCMSProps) => {
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : !tableExists ? (
+                <div className="text-center py-12">
+                  <AlertTriangle className="h-16 w-16 text-orange-300 mx-auto mb-4" />
+                  <p className="text-gray-600 text-lg mb-4">Database table not found</p>
+                  <p className="text-gray-500 text-sm">
+                    Run the database migration to create the team_members table
+                  </p>
                 </div>
               ) : teamMembers.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -333,6 +399,7 @@ export const TeamMemberCMS = ({ onClose }: TeamMemberCMSProps) => {
                       setIsDialogOpen(true);
                     }}
                     className="mt-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                    disabled={!tableExists}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add First Team Member
@@ -458,7 +525,7 @@ export const TeamMemberCMS = ({ onClose }: TeamMemberCMSProps) => {
               </Button>
               <Button 
                 type="submit"
-                disabled={createMemberMutation.isPending || updateMemberMutation.isPending || isUploading}
+                disabled={createMemberMutation.isPending || updateMemberMutation.isPending || isUploading || !tableExists}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
               >
                 {editingMember ? 'Update' : 'Create'} Team Member

@@ -88,21 +88,13 @@ export default function AdminDashboard() {
       // Try to fetch pending notifications - gracefully handle if table doesn't exist
       let pendingNotificationsCount = 0;
       try {
-        // This will fail if notifications table doesn't exist yet
         const { data: pendingNotifications } = await supabase
-          .from('orders') // Use orders table temporarily
+          .from('notifications')
           .select('id')
-          .eq('restaurant_id', restaurant.id)
-          .limit(0); // Just test the connection
+          .eq('admin_id', restaurant.admin_id)
+          .eq('status', 'pending');
         
-        // Once notifications table exists, this should be:
-        // const { data: pendingNotifications } = await supabase
-        //   .from('notifications')
-        //   .select('*')
-        //   .eq('admin_id', restaurant.admin_id)
-        //   .eq('status', 'pending');
-        
-        pendingNotificationsCount = 0; // Will be updated once notifications table exists
+        pendingNotificationsCount = pendingNotifications?.length || 0;
       } catch (error) {
         console.log('Notifications table not ready yet');
         pendingNotificationsCount = 0;

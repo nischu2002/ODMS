@@ -62,39 +62,50 @@ export const RiderManagement = () => {
     enabled: !!restaurant?.id
   });
 
-  // Create rider mutation - Fixed to prevent admin logout
+  // Create rider mutation - Fixed authentication issue
   const createRiderMutation = useMutation({
     mutationFn: async (riderData: typeof newRider) => {
       if (!restaurant?.id) throw new Error('No restaurant selected');
 
-      // Create user account without affecting current session
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      // First, create the user account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: riderData.email,
         password: riderData.password,
-        email_confirm: true,
-        user_metadata: {
-          name: riderData.name,
-          role: 'rider'
+        options: {
+          data: {
+            name: riderData.name,
+            role: 'rider'
+          }
         }
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error('Auth error:', authError);
+        throw new Error(`Authentication error: ${authError.message}`);
+      }
 
-      if (authData.user) {
-        // Insert user data into our users table
-        const { error: userError } = await supabase
-          .from('users')
-          .insert({
-            id: authData.user.id,
-            name: riderData.name,
-            email: riderData.email,
-            phone: riderData.phone,
-            role: 'rider',
-            restaurant_id: restaurant.id,
-            is_active: true
-          });
+      if (!authData.user) {
+        throw new Error('Failed to create user account');
+      }
 
-        if (userError) throw userError;
+      // Then insert the user data into our users table
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          name: riderData.name,
+          email: riderData.email,
+          phone: riderData.phone,
+          role: 'rider',
+          restaurant_id: restaurant.id,
+          is_active: true
+        });
+
+      if (userError) {
+        console.error('User table error:', userError);
+        // If user table insert fails, we should clean up the auth user
+        // Note: In production, you might want to handle this differently
+        throw new Error(`Failed to create user profile: ${userError.message}`);
       }
 
       return authData.user;
@@ -211,6 +222,10 @@ export const RiderManagement = () => {
           <CardContent>
             <form onSubmit={(e) => {
               e.preventDefault();
+              if (!newRider.name || !newRider.email || !newRider.phone || !newRider.password) {
+                toast({ title: "Please fill in all fields", variant: "destructive" });
+                return;
+              }
               createRiderMutation.mutate(newRider);
             }} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -310,7 +325,11 @@ export const RiderManagement = () => {
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => deleteRiderMutation.mutate(rider.id)}
+                        onClick={() => {
+                          if (window.confirm('Are you sure you want to delete this rider?')) {
+                            deleteRiderMutation.mutate(rider.id);
+                          }
+                        }}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

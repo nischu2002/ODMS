@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { 
   ShoppingBag, 
   ChefHat, 
@@ -11,7 +12,10 @@ import {
   Clock, 
   TrendingUp,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  BarChart3,
+  Users,
+  Bell
 } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
@@ -22,6 +26,7 @@ export const StaffDashboard = () => {
   const { restaurant, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Fetch staff dashboard data
   const { data: dashboardData, isLoading } = useQuery({
@@ -112,6 +117,293 @@ export const StaffDashboard = () => {
     }
   });
 
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'orders':
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">Order Management</h2>
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Orders</CardTitle>
+                <CardDescription>Manage and track recent orders</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {dashboardData?.recentOrders?.length ? (
+                    dashboardData.recentOrders.map((order: any) => (
+                      <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                          <div className="font-medium">{order.customer_name}</div>
+                          <div className="text-sm text-gray-500">
+                            {order.customer_phone} • {new Date(order.created_at).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <div className="font-medium">${order.total_amount}</div>
+                            <Badge className={
+                              order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                              'bg-blue-100 text-blue-800'
+                            }>
+                              {order.status}
+                            </Badge>
+                          </div>
+                          {order.status !== 'delivered' && order.status !== 'cancelled' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => requestDeletionMutation.mutate(order.id)}
+                              disabled={requestDeletionMutation.isPending}
+                              title="Feature available after database migration"
+                            >
+                              Request Delete
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center text-gray-500 py-8">No recent orders</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      case 'menu':
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">Menu Insights</h2>
+            <Card>
+              <CardHeader>
+                <CardTitle>Most Ordered Items</CardTitle>
+                <CardDescription>Popular menu items based on total orders</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {dashboardData?.mostOrderedItems?.length ? (
+                    dashboardData.mostOrderedItems.map((item, index) => (
+                      <div key={item.name} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-semibold text-blue-800">
+                            {index + 1}
+                          </div>
+                          <span className="font-medium">{item.name}</span>
+                        </div>
+                        <Badge variant="secondary">{item.count} orders</Badge>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center text-gray-500 py-8">No order data available</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      case 'analytics':
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">Staff Analytics</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Orders Processed</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{dashboardData?.todayOrdersCount || 0}</div>
+                  <p className="text-sm text-gray-500">Today</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Revenue Generated</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">${dashboardData?.todayRevenue?.toFixed(2) || '0.00'}</div>
+                  <p className="text-sm text-gray-500">Today</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Menu Availability</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {dashboardData?.totalMenuItems ? 
+                      Math.round((dashboardData.availableMenuItems / dashboardData.totalMenuItems) * 100) : 0}%
+                  </div>
+                  <p className="text-sm text-gray-500">Available Items</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        );
+      case 'notifications':
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">Notifications</h2>
+            <Card>
+              <CardHeader>
+                <CardTitle>System Notifications</CardTitle>
+                <CardDescription>Important updates and alerts</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-gray-500">
+                  <Bell className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>Notification system will be available after database migration</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      default:
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Staff Dashboard</h1>
+                <p className="text-gray-600">Welcome back, {user?.name}! Here's your daily overview.</p>
+              </div>
+            </div>
+
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Today's Orders</CardTitle>
+                  <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{dashboardData?.todayOrdersCount || 0}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Total: {dashboardData?.totalOrders || 0} orders
+                  </p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">${dashboardData?.todayRevenue?.toFixed(2) || '0.00'}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Sales performance
+                  </p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{dashboardData?.pendingOrders || 0}</div>
+                  <p className="text-xs text-muted-foreground">Need attention</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Kitchen Status</CardTitle>
+                  <ChefHat className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{dashboardData?.preparingOrders || 0}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {dashboardData?.readyOrders || 0} ready for delivery
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Most Ordered Items */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Most Ordered Items</CardTitle>
+                  <CardDescription>Popular menu items based on total orders</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {dashboardData?.mostOrderedItems?.length ? (
+                      dashboardData.mostOrderedItems.map((item, index) => (
+                        <div key={item.name} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-semibold text-blue-800">
+                              {index + 1}
+                            </div>
+                            <span className="font-medium">{item.name}</span>
+                          </div>
+                          <Badge variant="secondary">{item.count} orders</Badge>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-center text-gray-500 py-8">No order data available</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Menu Overview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Menu Overview</CardTitle>
+                  <CardDescription>Current menu status and availability</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <span className="font-medium">Available Items</span>
+                      </div>
+                      <span className="text-2xl font-bold text-green-600">
+                        {dashboardData?.availableMenuItems || 0}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <AlertCircle className="h-5 w-5 text-gray-600" />
+                        <span className="font-medium">Total Items</span>
+                      </div>
+                      <span className="text-2xl font-bold">
+                        {dashboardData?.totalMenuItems || 0}
+                      </span>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="text-sm text-gray-600 mb-2">Availability Rate</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-green-600 h-2 rounded-full" 
+                          style={{ 
+                            width: `${dashboardData?.totalMenuItems ? 
+                              (dashboardData.availableMenuItems / dashboardData.totalMenuItems) * 100 : 0}%` 
+                          }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {dashboardData?.totalMenuItems ? 
+                          Math.round((dashboardData.availableMenuItems / dashboardData.totalMenuItems) * 100) : 0}% 
+                        of menu items are available
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        );
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -122,192 +414,34 @@ export const StaffDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Staff Dashboard</h1>
-          <p className="text-gray-600">Welcome back, {user?.name}! Here's your daily overview.</p>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="orders" className="flex items-center gap-2">
+            <ShoppingBag className="h-4 w-4" />
+            Orders
+          </TabsTrigger>
+          <TabsTrigger value="menu" className="flex items-center gap-2">
+            <ChefHat className="h-4 w-4" />
+            Menu
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Analytics
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            Notifications
+          </TabsTrigger>
+        </TabsList>
+
+        <div className="mt-6">
+          {renderTabContent()}
         </div>
-      </div>
-
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Orders</CardTitle>
-            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardData?.todayOrdersCount || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Total: {dashboardData?.totalOrders || 0} orders
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${dashboardData?.todayRevenue?.toFixed(2) || '0.00'}</div>
-            <p className="text-xs text-muted-foreground">
-              Sales performance
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardData?.pendingOrders || 0}</div>
-            <p className="text-xs text-muted-foreground">Need attention</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Kitchen Status</CardTitle>
-            <ChefHat className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardData?.preparingOrders || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {dashboardData?.readyOrders || 0} ready for delivery
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Most Ordered Items */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Most Ordered Items</CardTitle>
-            <CardDescription>Popular menu items based on total orders</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {dashboardData?.mostOrderedItems?.length ? (
-                dashboardData.mostOrderedItems.map((item, index) => (
-                  <div key={item.name} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-semibold text-blue-800">
-                        {index + 1}
-                      </div>
-                      <span className="font-medium">{item.name}</span>
-                    </div>
-                    <Badge variant="secondary">{item.count} orders</Badge>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-gray-500 py-8">No order data available</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Menu Overview */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Menu Overview</CardTitle>
-            <CardDescription>Current menu status and availability</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="font-medium">Available Items</span>
-                </div>
-                <span className="text-2xl font-bold text-green-600">
-                  {dashboardData?.availableMenuItems || 0}
-                </span>
-              </div>
-              
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <AlertCircle className="h-5 w-5 text-gray-600" />
-                  <span className="font-medium">Total Items</span>
-                </div>
-                <span className="text-2xl font-bold">
-                  {dashboardData?.totalMenuItems || 0}
-                </span>
-              </div>
-
-              <div className="mt-4">
-                <div className="text-sm text-gray-600 mb-2">Availability Rate</div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-green-600 h-2 rounded-full" 
-                    style={{ 
-                      width: `${dashboardData?.totalMenuItems ? 
-                        (dashboardData.availableMenuItems / dashboardData.totalMenuItems) * 100 : 0}%` 
-                    }}
-                  ></div>
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {dashboardData?.totalMenuItems ? 
-                    Math.round((dashboardData.availableMenuItems / dashboardData.totalMenuItems) * 100) : 0}% 
-                  of menu items are available
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Orders */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Orders</CardTitle>
-          <CardDescription>Latest orders that need attention</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {dashboardData?.recentOrders?.length ? (
-              dashboardData.recentOrders.map((order: any) => (
-                <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <div className="font-medium">{order.customer_name}</div>
-                    <div className="text-sm text-gray-500">
-                      {order.customer_phone} • {new Date(order.created_at).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="font-medium">${order.total_amount}</div>
-                      <Badge className={
-                        order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                        'bg-blue-100 text-blue-800'
-                      }>
-                        {order.status}
-                      </Badge>
-                    </div>
-                    {order.status !== 'delivered' && order.status !== 'cancelled' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => requestDeletionMutation.mutate(order.id)}
-                        disabled={requestDeletionMutation.isPending}
-                        title="Feature available after database migration"
-                      >
-                        Request Delete
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-gray-500 py-8">No recent orders</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      </Tabs>
     </div>
   );
 };

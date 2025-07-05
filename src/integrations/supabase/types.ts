@@ -390,6 +390,45 @@ export type Database = {
         }
         Relationships: []
       }
+      team_members: {
+        Row: {
+          created_at: string
+          description: string
+          email: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          phone: string
+          position: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          email: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          phone: string
+          position: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          email?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          phone?: string
+          position?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { DashboardLayout } from '../components/Layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -18,7 +17,8 @@ import {
   Edit,
   Trash2,
   Eye,
-  Activity
+  Activity,
+  UserCog
 } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
@@ -33,6 +33,7 @@ import {
 } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
 import { Switch } from '../components/ui/switch';
+import { TeamMemberCMS } from '../components/TeamMemberCMS';
 
 interface Restaurant {
   id: string;
@@ -59,6 +60,7 @@ interface User {
 export default function SuperAdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showTeamCMS, setShowTeamCMS] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -182,6 +184,10 @@ export default function SuperAdminDashboard() {
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.role.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (showTeamCMS) {
+    return <TeamMemberCMS onClose={() => setShowTeamCMS(false)} />;
+  }
 
   const renderOverview = () => (
     <div className="space-y-6">
@@ -476,6 +482,35 @@ export default function SuperAdminDashboard() {
     </div>
   );
 
+  const renderTeams = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Team Management</h2>
+        <Button onClick={() => setShowTeamCMS(true)} className="flex items-center gap-2">
+          <UserCog className="h-4 w-4" />
+          Manage Team Members
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Team CMS</CardTitle>
+          <CardDescription>Manage team member profiles displayed on the public website</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <UserCog className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-600 text-lg mb-4">Click "Manage Team Members" to access the full CMS</p>
+            <Button onClick={() => setShowTeamCMS(true)} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+              <UserCog className="h-4 w-4 mr-2" />
+              Open Team CMS
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   const renderSettings = () => (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">System Settings</h2>
@@ -519,7 +554,7 @@ export default function SuperAdminDashboard() {
   return (
     <DashboardLayout>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
             Overview
@@ -531,6 +566,10 @@ export default function SuperAdminDashboard() {
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Users
+          </TabsTrigger>
+          <TabsTrigger value="teams" className="flex items-center gap-2">
+            <UserCog className="h-4 w-4" />
+            Teams
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
@@ -547,6 +586,9 @@ export default function SuperAdminDashboard() {
           </TabsContent>
           <TabsContent value="users">
             {renderUsers()}
+          </TabsContent>
+          <TabsContent value="teams">
+            {renderTeams()}
           </TabsContent>
           <TabsContent value="settings">
             {renderSettings()}
