@@ -1,316 +1,314 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
-import { ChefHat, Clock, DollarSign, ShoppingBag, CheckCircle, AlertCircle } from 'lucide-react';
+import { 
+  ShoppingBag, 
+  ChefHat, 
+  Truck, 
+  DollarSign, 
+  Clock, 
+  TrendingUp,
+  AlertCircle,
+  CheckCircle
+} from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from './ui/table';
 import { Badge } from './ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
-
-interface Order {
-  id: string;
-  customer_name: string;
-  customer_phone: string;
-  customer_address: string;
-  total_amount: number;
-  status: string;
-  payment_status: string;
-  created_at: string;
-  order_items?: Array<{
-    id: string;
-    name: string;
-    quantity: number;
-    price: number;
-  }>;
-}
 
 export const StaffDashboard = () => {
   const { restaurant, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch orders for the restaurant
-  const { data: orders = [], isLoading } = useQuery({
-    queryKey: ['staff-orders', restaurant?.id],
+  // Fetch staff dashboard data
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ['staff-dashboard', restaurant?.id],
     queryFn: async () => {
-      if (!restaurant?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items(*)
-        `)
-        .eq('restaurant_id', restaurant.id)
-        .order('created_at', { ascending: false });
+      if (!restaurant?.id) return null;
 
-      if (error) throw error;
-      return data as Order[];
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Fetch orders data
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('restaurant_id', restaurant.id);
+
+      const { data: todayOrders } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('restaurant_id', restaurant.id)
+        .gte('created_at', today);
+
+      // Fetch menu items
+      const { data: menuItems } = await supabase
+        .from('menu_items')
+        .select('*')
+        .eq('restaurant_id', restaurant.id);
+
+      // Get most ordered items
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('name, quantity')
+        .in('order_id', orders?.map(o => o.id) || []);
+
+      // Calculate metrics
+      const totalOrders = orders?.length || 0;
+      const todayOrdersCount = todayOrders?.length || 0;
+      const todayRevenue = todayOrders?.reduce((sum, order) => sum + Number(order.total_amount), 0) || 0;
+      const pendingOrders = orders?.filter(order => order.status === 'pending').length || 0;
+      const preparingOrders = orders?.filter(order => order.status === 'preparing').length || 0;
+      const readyOrders = orders?.filter(order => order.status === 'ready').length || 0;
+      
+      // Calculate most ordered items
+      const itemCounts: { [key: string]: number } = {};
+      orderItems?.forEach(item => {
+        itemCounts[item.name] = (itemCounts[item.name] || 0) + item.quantity;
+      });
+      
+      const mostOrderedItems = Object.entries(itemCounts)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5)
+        .map(([name, count]) => ({ name, count }));
+
+      return {
+        totalOrders,
+        todayOrdersCount,
+        todayRevenue,
+        pendingOrders,
+        preparingOrders,
+        readyOrders,
+        mostOrderedItems,
+        recentOrders: orders?.slice(0, 10) || [],
+        availableMenuItems: menuItems?.filter(item => item.is_available).length || 0,
+        totalMenuItems: menuItems?.length || 0
+      };
     },
     enabled: !!restaurant?.id,
-    refetchInterval: 10000 // Refresh every 10 seconds
+    refetchInterval: 30000 // Refresh every 30 seconds
   });
 
-  // Update order status mutation
-  const updateOrderMutation = useMutation({
-    mutationFn: async ({ orderId, newStatus }: { orderId: string; newStatus: string }) => {
+  // Request order deletion
+  const requestDeletionMutation = useMutation({
+    mutationFn: async (orderId: string) => {
       const { error } = await supabase
-        .from('orders')
-        .update({ 
-          status: newStatus,
-          assigned_staff_id: user?.id 
-        })
-        .eq('id', orderId);
+        .from('notifications')
+        .insert({
+          order_id: orderId,
+          staff_id: user?.id,
+          admin_id: restaurant?.admin_id,
+          notification_type: 'order_deletion_request',
+          message: `Staff member ${user?.name} has requested deletion of order ${orderId.slice(0, 8)}`,
+          status: 'pending'
+        });
 
       if (error) throw error;
-
-      // Log status change
-      await supabase.from('order_status_history').insert({
-        order_id: orderId,
-        new_status: newStatus,
-        changed_by: user?.id
-      });
-
-      // Log analytics event
-      if (newStatus === 'delivered') {
-        const order = orders.find(o => o.id === orderId);
-        if (order) {
-          await supabase.from('analytics_events').insert({
-            restaurant_id: restaurant?.id,
-            event_type: 'order_completed',
-            event_data: { order_id: orderId, total_amount: order.total_amount }
-          });
-        }
-      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staff-orders', restaurant?.id] });
-      toast({ title: "Order status updated successfully" });
+      toast({ title: "Deletion request sent to admin" });
     },
     onError: (error) => {
-      console.error('Error updating order status:', error);
-      toast({ title: "Error updating order status", variant: "destructive" });
+      console.error('Error requesting deletion:', error);
+      toast({ title: "Error sending deletion request", variant: "destructive" });
     }
   });
 
-  // Calculate metrics
-  const pendingOrders = orders.filter(o => o.status === 'pending');
-  const preparingOrders = orders.filter(o => o.status === 'preparing');
-  const readyOrders = orders.filter(o => o.status === 'ready');
-  const completedToday = orders.filter(o => 
-    o.status === 'delivered' && 
-    new Date(o.created_at).toDateString() === new Date().toDateString()
-  );
-
-  const todayRevenue = completedToday.reduce((sum, order) => sum + Number(order.total_amount), 0);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'confirmed': return 'bg-blue-100 text-blue-800';
-      case 'preparing': return 'bg-orange-100 text-orange-800';
-      case 'ready': return 'bg-green-100 text-green-800';
-      case 'assigned': return 'bg-purple-100 text-purple-800';
-      case 'delivered': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const handleStatusUpdate = (orderId: string, newStatus: string) => {
-    updateOrderMutation.mutate({ orderId, newStatus });
-  };
-
   if (isLoading) {
-    return <div className="flex items-center justify-center p-8">Loading orders...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Staff Dashboard</h1>
-        <div className="text-sm text-gray-600">
-          Welcome back! Manage orders and kitchen operations.
+        <div>
+          <h1 className="text-3xl font-bold">Staff Dashboard</h1>
+          <p className="text-gray-600">Welcome back, {user?.name}! Here's your daily overview.</p>
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
-            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <CardTitle className="text-sm font-medium">Today's Orders</CardTitle>
+            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{pendingOrders.length}</div>
-            <p className="text-xs text-muted-foreground">Need attention</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">In Kitchen</CardTitle>
-            <ChefHat className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{preparingOrders.length}</div>
-            <p className="text-xs text-muted-foreground">Being prepared</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ready for Delivery</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{readyOrders.length}</div>
-            <p className="text-xs text-muted-foreground">Awaiting pickup</p>
+            <div className="text-2xl font-bold">{dashboardData?.todayOrdersCount || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              Total: {dashboardData?.totalOrders || 0} orders
+            </p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600" />
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${todayRevenue.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">{completedToday.length} orders completed</p>
+            <div className="text-2xl font-bold">${dashboardData?.todayRevenue?.toFixed(2) || '0.00'}</div>
+            <p className="text-xs text-muted-foreground">
+              Sales performance
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardData?.pendingOrders || 0}</div>
+            <p className="text-xs text-muted-foreground">Need attention</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Kitchen Status</CardTitle>
+            <ChefHat className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardData?.preparingOrders || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              {dashboardData?.readyOrders || 0} ready for delivery
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Priority Orders */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Most Ordered Items */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Most Ordered Items</CardTitle>
+            <CardDescription>Popular menu items based on total orders</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {dashboardData?.mostOrderedItems?.length ? (
+                dashboardData.mostOrderedItems.map((item, index) => (
+                  <div key={item.name} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-semibold text-blue-800">
+                        {index + 1}
+                      </div>
+                      <span className="font-medium">{item.name}</span>
+                    </div>
+                    <Badge variant="secondary">{item.count} orders</Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-gray-500 py-8">No order data available</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Menu Overview */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Menu Overview</CardTitle>
+            <CardDescription>Current menu status and availability</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <span className="font-medium">Available Items</span>
+                </div>
+                <span className="text-2xl font-bold text-green-600">
+                  {dashboardData?.availableMenuItems || 0}
+                </span>
+              </div>
+              
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="h-5 w-5 text-gray-600" />
+                  <span className="font-medium">Total Items</span>
+                </div>
+                <span className="text-2xl font-bold">
+                  {dashboardData?.totalMenuItems || 0}
+                </span>
+              </div>
+
+              <div className="mt-4">
+                <div className="text-sm text-gray-600 mb-2">Availability Rate</div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-green-600 h-2 rounded-full" 
+                    style={{ 
+                      width: `${dashboardData?.totalMenuItems ? 
+                        (dashboardData.availableMenuItems / dashboardData.totalMenuItems) * 100 : 0}%` 
+                    }}
+                  ></div>
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {dashboardData?.totalMenuItems ? 
+                    Math.round((dashboardData.availableMenuItems / dashboardData.totalMenuItems) * 100) : 0}% 
+                  of menu items are available
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Orders */}
       <Card>
         <CardHeader>
-          <CardTitle>Priority Orders</CardTitle>
-          <CardDescription>Orders that need immediate attention</CardDescription>
+          <CardTitle>Recent Orders</CardTitle>
+          <CardDescription>Latest orders that need attention</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {pendingOrders.slice(0, 3).map((order) => (
-              <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
-                    <div>
-                      <h3 className="font-medium">{order.customer_name}</h3>
-                      <p className="text-sm text-gray-600">{order.customer_phone}</p>
-                      <p className="text-sm text-gray-600">{order.order_items?.length || 0} items - ${order.total_amount}</p>
+            {dashboardData?.recentOrders?.length ? (
+              dashboardData.recentOrders.map((order: any) => (
+                <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <div className="font-medium">{order.customer_name}</div>
+                    <div className="text-sm text-gray-500">
+                      {order.customer_phone} • {new Date(order.created_at).toLocaleString()}
                     </div>
                   </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="font-medium">${order.total_amount}</div>
+                      <Badge className={
+                        order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                        'bg-blue-100 text-blue-800'
+                      }>
+                        {order.status}
+                      </Badge>
+                    </div>
+                    {order.status !== 'delivered' && order.status !== 'cancelled' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => requestDeletionMutation.mutate(order.id)}
+                        disabled={requestDeletionMutation.isPending}
+                      >
+                        Request Delete
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-yellow-100 text-yellow-800">
-                    {Math.floor((new Date().getTime() - new Date(order.created_at).getTime()) / (1000 * 60))} min ago
-                  </Badge>
-                  <Button 
-                    size="sm" 
-                    onClick={() => handleStatusUpdate(order.id, 'confirmed')}
-                    disabled={updateOrderMutation.isPending}
-                  >
-                    Confirm Order
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {pendingOrders.length === 0 && (
-              <p className="text-center text-gray-500 py-8">No pending orders</p>
+              ))
+            ) : (
+              <p className="text-center text-gray-500 py-8">No recent orders</p>
             )}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* All Orders */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Orders</CardTitle>
-          <CardDescription>Manage and track all restaurant orders</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order ID</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Items</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orders.slice(0, 10).map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell className="font-mono text-sm">{order.id.slice(0, 8)}</TableCell>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{order.customer_name}</div>
-                      <div className="text-sm text-gray-500">{order.customer_phone}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{order.order_items?.length || 0} items</div>
-                      <div className="text-sm text-gray-500">
-                        {order.order_items?.slice(0, 2).map(item => item.name).join(', ')}
-                        {(order.order_items?.length || 0) > 2 && '...'}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">${order.total_amount}</TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(order.status)}>
-                      {order.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-gray-500">
-                    {new Date(order.created_at).toLocaleString()}
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={order.status}
-                      onValueChange={(status) => handleStatusUpdate(order.id, status)}
-                      disabled={updateOrderMutation.isPending}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="confirmed">Confirmed</SelectItem>
-                        <SelectItem value="preparing">Preparing</SelectItem>
-                        <SelectItem value="ready">Ready</SelectItem>
-                        <SelectItem value="assigned">Assigned</SelectItem>
-                        <SelectItem value="delivered">Delivered</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {orders.length === 0 && (
-            <p className="text-center text-gray-500 py-8">No orders yet</p>
-          )}
         </CardContent>
       </Card>
     </div>

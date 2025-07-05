@@ -6,7 +6,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Search, Edit, Trash2, Image, Tag } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Upload, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -35,6 +35,7 @@ interface MenuItem {
   price: number;
   category: string;
   image_url?: string;
+  photo_url?: string;
   is_available: boolean;
   preparation_time: number;
   ingredients?: string[];
@@ -47,6 +48,9 @@ export const MenuManagement = () => {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -84,10 +88,68 @@ export const MenuManagement = () => {
   // Get unique categories
   const categories = Array.from(new Set(menuItems.map(item => item.category)));
 
+  // Handle file selection
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast({ title: "File too large", description: "Please select an image under 5MB", variant: "destructive" });
+        return;
+      }
+      
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowedTypes.includes(file.type)) {
+        toast({ title: "Invalid file type", description: "Please select a JPEG, PNG, WebP, or GIF image", variant: "destructive" });
+        return;
+      }
+
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setFilePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Upload image to Supabase storage
+  const uploadImage = async (file: File): Promise<string | null> => {
+    if (!restaurant?.id) return null;
+    
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${restaurant.id}-${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('menu-images')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('menu-images')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({ title: "Upload failed", description: "Failed to upload image", variant: "destructive" });
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // Create menu item mutation
   const createItemMutation = useMutation({
     mutationFn: async (itemData: any) => {
       if (!restaurant?.id) throw new Error('No restaurant selected');
+
+      let photoUrl = null;
+      if (selectedFile) {
+        photoUrl = await uploadImage(selectedFile);
+      }
 
       const { data, error } = await supabase
         .from('menu_items')
@@ -98,6 +160,7 @@ export const MenuManagement = () => {
           price: itemData.price,
           category: itemData.category,
           image_url: itemData.image_url || null,
+          photo_url: photoUrl,
           is_available: itemData.is_available,
           preparation_time: itemData.preparation_time,
           ingredients: itemData.ingredients ? itemData.ingredients.split(',').map((i: string) => i.trim()) : null,
@@ -123,6 +186,12 @@ export const MenuManagement = () => {
   // Update menu item mutation
   const updateItemMutation = useMutation({
     mutationFn: async ({ id, ...itemData }: any) => {
+      let photoUrl = editingItem?.photo_url;
+      
+      if (selectedFile) {
+        photoUrl = await uploadImage(selectedFile);
+      }
+
       const { data, error } = await supabase
         .from('menu_items')
         .update({
@@ -131,6 +200,7 @@ export const MenuManagement = () => {
           price: itemData.price,
           category: itemData.category,
           image_url: itemData.image_url || null,
+          photo_url: photoUrl,
           is_available: itemData.is_available,
           preparation_time: itemData.preparation_time,
           ingredients: itemData.ingredients ? itemData.ingredients.split(',').map((i: string) => i.trim()) : null,
@@ -206,6 +276,8 @@ export const MenuManagement = () => {
       ingredients: '',
       allergens: ''
     });
+    setSelectedFile(null);
+    setFilePreview(null);
     setShowCreateForm(false);
     setEditingItem(null);
   };
@@ -233,7 +305,15 @@ export const MenuManagement = () => {
       ingredients: item.ingredients?.join(', ') || '',
       allergens: item.allergens?.join(', ') || ''
     });
+    if (item.photo_url) {
+      setFilePreview(item.photo_url);
+    }
     setShowCreateForm(true);
+  };
+
+  const clearImage = () => {
+    setSelectedFile(null);
+    setFilePreview(null);
   };
 
   const filteredItems = menuItems.filter(item => {
@@ -330,6 +410,50 @@ export const MenuManagement = () => {
                 />
               </div>
 
+              {/* Photo Upload Section */}
+              <div>
+                <Label htmlFor="photo">Menu Item Photo</Label>
+                <div className="mt-2 space-y-4">
+                  {filePreview && (
+                    <div className="relative inline-block">
+                      <img 
+                        src={filePreview} 
+                        alt="Preview" 
+                        className="w-32 h-32 object-cover rounded-lg border"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute -top-2 -right-2"
+                        onClick={clearImage}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4">
+                    <Input
+                      id="photo"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById('photo')?.click()}
+                      disabled={isUploading}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {isUploading ? 'Uploading...' : 'Choose Image'}
+                    </Button>
+                    <span className="text-sm text-gray-500">Max 5MB • JPEG, PNG, WebP, GIF</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="price">Price *</Label>
@@ -364,7 +488,7 @@ export const MenuManagement = () => {
               </div>
 
               <div>
-                <Label htmlFor="image_url">Image URL</Label>
+                <Label htmlFor="image_url">Additional Image URL (Optional)</Label>
                 <Input
                   id="image_url"
                   type="url"
@@ -397,9 +521,9 @@ export const MenuManagement = () => {
               <div className="flex gap-2">
                 <Button 
                   type="submit" 
-                  disabled={createItemMutation.isPending || updateItemMutation.isPending}
+                  disabled={createItemMutation.isPending || updateItemMutation.isPending || isUploading}
                 >
-                  {createItemMutation.isPending || updateItemMutation.isPending 
+                  {createItemMutation.isPending || updateItemMutation.isPending || isUploading
                     ? 'Saving...' 
                     : editingItem ? 'Update Item' : 'Add Item'
                   }
@@ -436,9 +560,9 @@ export const MenuManagement = () => {
                 <TableRow key={item.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      {item.image_url && (
+                      {(item.photo_url || item.image_url) && (
                         <img 
-                          src={item.image_url} 
+                          src={item.photo_url || item.image_url} 
                           alt={item.name}
                           className="w-12 h-12 rounded-lg object-cover"
                         />

@@ -15,7 +15,8 @@ import {
   ChefHat,
   DollarSign,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Bell
 } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
@@ -27,6 +28,7 @@ import { RiderManagement } from '../components/RiderManagement';
 import { OrderManagement } from '../components/OrderManagement';
 import { MenuManagement } from '../components/MenuManagement';
 import { Analytics } from '../components/Analytics';
+import { NotificationCenter } from '../components/NotificationCenter';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -83,6 +85,13 @@ export default function AdminDashboard() {
         .select('*')
         .eq('restaurant_id', restaurant.id);
 
+      // Fetch pending notifications
+      const { data: pendingNotifications } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('admin_id', restaurant.admin_id)
+        .eq('status', 'pending');
+
       // Calculate metrics
       const totalOrders = orders?.length || 0;
       const todayOrdersCount = todayOrders?.length || 0;
@@ -110,7 +119,8 @@ export default function AdminDashboard() {
         recentOrders,
         staffCount: staff?.length || 0,
         ridersCount: riders?.length || 0,
-        menuItemsCount: menuItems?.length || 0
+        menuItemsCount: menuItems?.length || 0,
+        pendingNotificationsCount: pendingNotifications?.length || 0
       };
     },
     enabled: !!restaurant?.id,
@@ -129,6 +139,8 @@ export default function AdminDashboard() {
         return <MenuManagement />;
       case 'analytics':
         return <Analytics />;
+      case 'notifications':
+        return <NotificationCenter />;
       case 'settings':
         return (
           <div className="space-y-6">
@@ -170,6 +182,29 @@ export default function AdminDashboard() {
                 Welcome back! Here's what's happening with your restaurant today.
               </div>
             </div>
+
+            {/* Notifications Alert */}
+            {dashboardData?.pendingNotificationsCount > 0 && (
+              <Card className="border-yellow-200 bg-yellow-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bell className="h-5 w-5 text-yellow-600" />
+                      <span className="font-medium text-yellow-800">
+                        You have {dashboardData.pendingNotificationsCount} pending notification{dashboardData.pendingNotificationsCount !== 1 ? 's' : ''} requiring your attention
+                      </span>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setActiveTab('notifications')}
+                    >
+                      View Notifications
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Key Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -373,7 +408,7 @@ export default function AdminDashboard() {
   return (
     <DashboardLayout>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <LayoutDashboard className="h-4 w-4" />
             Overview
@@ -393,6 +428,15 @@ export default function AdminDashboard() {
           <TabsTrigger value="menu" className="flex items-center gap-2">
             <ChefHat className="h-4 w-4" />
             Menu
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            Notifications
+            {dashboardData?.pendingNotificationsCount > 0 && (
+              <span className="bg-red-500 text-white text-xs rounded-full px-1 min-w-[1rem] h-4 flex items-center justify-center">
+                {dashboardData.pendingNotificationsCount}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="analytics" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />

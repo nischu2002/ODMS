@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Truck, Clock, DollarSign, CheckCircle } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Truck, Clock, DollarSign, CheckCircle, Minus, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -37,12 +37,30 @@ interface Order {
   created_at: string;
   assigned_staff_id?: string;
   assigned_rider_id?: string;
+  kitchen_assigned_at?: string;
+  rider_assigned_at?: string;
   order_items?: Array<{
     id: string;
     name: string;
     quantity: number;
     price: number;
   }>;
+}
+
+interface MenuItem {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  is_available: boolean;
+  photo_url?: string;
+  image_url?: string;
+  description?: string;
+}
+
+interface OrderItem {
+  menuItem: MenuItem;
+  quantity: number;
 }
 
 interface Staff {
@@ -55,12 +73,11 @@ export const OrderManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
-  const [newOrder, setNewOrder] = useState({
-    customer_name: '',
-    customer_phone: '',
-    customer_address: '',
-    items: [{ name: '', quantity: 1, price: 0 }]
+  const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
+  const [customerData, setCustomerData] = useState({
+    name: '',
+    phone: '',
+    address: ''
   });
 
   const { restaurant } = useAuth();
@@ -88,6 +105,25 @@ export const OrderManagement = () => {
     enabled: !!restaurant?.id
   });
 
+  // Fetch menu items for order creation
+  const { data: menuItems = [] } = useQuery({
+    queryKey: ['menu-items-for-orders', restaurant?.id],
+    queryFn: async () => {
+      if (!restaurant?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('*')
+        .eq('restaurant_id', restaurant.id)
+        .eq('is_available', true)
+        .order('category', { ascending: true });
+
+      if (error) throw error;
+      return data as MenuItem[];
+    },
+    enabled: !!restaurant?.id && showCreateForm
+  });
+
   // Fetch staff and riders for assignment
   const { data: staff = [] } = useQuery({
     queryKey: ['staff-riders', restaurant?.id],
@@ -107,22 +143,76 @@ export const OrderManagement = () => {
     enabled: !!restaurant?.id
   });
 
+  // Add item to order
+  const addItemToOrder = (menuItem: MenuItem) => {
+    const existingIndex = selectedItems.findIndex(item => item.menuItem.id === menuItem.id);
+    
+    if (existingIndex >= 0) {
+      const updatedItems = [...selectedItems];
+      updatedItems[existingIndex].quantity += 1;
+      setSelectedItems(updatedItems);
+    } else {
+      setSelectedItems([...selectedItems, { menuItem, quantity: 1 }]);
+    }
+  };
+
+  // Update item quantity
+  const updateItemQuantity = (menuItemId: string, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      removeItemFromOrder(menuItemId);
+      return;
+    }
+    
+    setSelectedItems(items => 
+      items.map(item => 
+        item.menuItem.id === menuItemId 
+          ? { ...item, quantity: newQuantity }
+          : item
+      )
+    );
+  };
+
+  // Remove item from order
+  const removeItemFromOrder = (menuItemId: string) => {
+    setSelectedItems(items => items.filter(item => item.menuItem.id !== menuItemId));
+  };
+
+  // Calculate total amount
+  const calculateTotal = () => {
+    return selectedItems.reduce((total, item) => total + (item.menuItem.price * item.quantity), 0);
+  };
+
+  // Get menu items by category
+  const getMenuItemsByCategory = () => {
+    const categories: { [key: string]: MenuItem[] } = {};
+    menuItems.forEach(item => {
+      if (!categories[item.category]) {
+        categories[item.category] = [];
+      }
+      categories[item.category].push(item);
+    });
+    return categories;
+  };
+
   // Create order mutation
   const createOrderMutation = useMutation({
-    mutationFn: async (orderData: any) => {
+    mutationFn: async () => {
       if (!restaurant?.id) throw new Error('No restaurant selected');
+      if (selectedItems.length === 0) throw new Error('Please select at least one item');
+      if (!customerData.name || !customerData.phone || !customerData.address) {
+        throw new Error('Please fill in all customer details');
+      }
 
-      const totalAmount = orderData.items.reduce((sum: number, item: any) => 
-        sum + (item.price * item.quantity), 0);
+      const totalAmount = calculateTotal();
 
       // Create order
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
           restaurant_id: restaurant.id,
-          customer_name: orderData.customer_name,
-          customer_phone: orderData.customer_phone,
-          customer_address: orderData.customer_address,
+          customer_name: customerData.name,
+          customer_phone: customerData.phone,
+          customer_address: customerData.address,
           total_amount: totalAmount,
           status: 'pending',
           payment_status: 'pending'
@@ -133,11 +223,11 @@ export const OrderManagement = () => {
       if (orderError) throw orderError;
 
       // Create order items
-      const orderItems = orderData.items.map((item: any) => ({
+      const orderItems = selectedItems.map((item) => ({
         order_id: order.id,
-        name: item.name,
+        name: item.menuItem.name,
         quantity: item.quantity,
-        price: item.price
+        price: item.menuItem.price
       }));
 
       const { error: itemsError } = await supabase
@@ -158,17 +248,11 @@ export const OrderManagement = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders', restaurant?.id] });
       toast({ title: "Order created successfully" });
-      setShowCreateForm(false);
-      setNewOrder({
-        customer_name: '',
-        customer_phone: '',
-        customer_address: '',
-        items: [{ name: '', quantity: 1, price: 0 }]
-      });
+      resetForm();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error creating order:', error);
-      toast({ title: "Error creating order", variant: "destructive" });
+      toast({ title: "Error creating order", description: error.message, variant: "destructive" });
     }
   });
 
@@ -215,6 +299,73 @@ export const OrderManagement = () => {
     }
   });
 
+  // Assign to kitchen mutation
+  const assignToKitchenMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          status: 'preparing',
+          kitchen_assigned_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', restaurant?.id] });
+      toast({ title: "Order assigned to kitchen" });
+    },
+    onError: (error) => {
+      console.error('Error assigning to kitchen:', error);
+      toast({ title: "Error assigning to kitchen", variant: "destructive" });
+    }
+  });
+
+  // Assign rider mutation
+  const assignRiderMutation = useMutation({
+    mutationFn: async ({ orderId, riderId }: { orderId: string; riderId: string }) => {
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          assigned_rider_id: riderId,
+          rider_assigned_at: new Date().toISOString(),
+          status: 'assigned'
+        })
+        .eq('id', orderId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', restaurant?.id] });
+      toast({ title: "Rider assigned successfully" });
+    },
+    onError: (error) => {
+      console.error('Error assigning rider:', error);
+      toast({ title: "Error assigning rider", variant: "destructive" });
+    }
+  });
+
+  // Update payment status mutation
+  const updatePaymentStatusMutation = useMutation({
+    mutationFn: async ({ orderId, paymentStatus }: { orderId: string; paymentStatus: string }) => {
+      const { error } = await supabase
+        .from('orders')
+        .update({ payment_status: paymentStatus })
+        .eq('id', orderId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', restaurant?.id] });
+      toast({ title: "Payment status updated" });
+    },
+    onError: (error) => {
+      console.error('Error updating payment status:', error);
+      toast({ title: "Error updating payment status", variant: "destructive" });
+    }
+  });
+
   // Delete order mutation
   const deleteOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
@@ -235,6 +386,12 @@ export const OrderManagement = () => {
     }
   });
 
+  const resetForm = () => {
+    setSelectedItems([]);
+    setCustomerData({ name: '', phone: '', address: '' });
+    setShowCreateForm(false);
+  };
+
   const filteredOrders = orders.filter(order => {
     const matchesSearch = order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          order.customer_phone.includes(searchTerm) ||
@@ -242,20 +399,6 @@ export const OrderManagement = () => {
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
-
-  const addOrderItem = () => {
-    setNewOrder({
-      ...newOrder,
-      items: [...newOrder.items, { name: '', quantity: 1, price: 0 }]
-    });
-  };
-
-  const updateOrderItem = (index: number, field: string, value: any) => {
-    const updatedItems = newOrder.items.map((item, i) => 
-      i === index ? { ...item, [field]: value } : item
-    );
-    setNewOrder({ ...newOrder, items: updatedItems });
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -270,6 +413,8 @@ export const OrderManagement = () => {
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const riders = staff.filter(s => s.role === 'rider');
 
   if (isLoading) {
     return <div className="flex items-center justify-center p-8">Loading orders...</div>;
@@ -322,89 +467,162 @@ export const OrderManagement = () => {
 
       {/* Create Order Form */}
       {showCreateForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Create New Order</CardTitle>
-            <CardDescription>Add a new order to the system</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              createOrderMutation.mutate(newOrder);
-            }} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="customer_name">Customer Name *</Label>
-                  <Input
-                    id="customer_name"
-                    value={newOrder.customer_name}
-                    onChange={(e) => setNewOrder({...newOrder, customer_name: e.target.value})}
-                    required
-                  />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Menu Items Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Select Menu Items</CardTitle>
+              <CardDescription>Click on items to add them to the order</CardDescription>
+            </CardHeader>
+            <CardContent className="max-h-96 overflow-y-auto">
+              {Object.entries(getMenuItemsByCategory()).map(([category, items]) => (
+                <div key={category} className="mb-6">
+                  <h4 className="font-semibold text-lg mb-3">{category}</h4>
+                  <div className="grid grid-cols-1 gap-2">
+                    {items.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => addItemToOrder(item)}
+                        className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        {(item.photo_url || item.image_url) && (
+                          <img 
+                            src={item.photo_url || item.image_url} 
+                            alt={item.name}
+                            className="w-12 h-12 rounded-lg object-cover"
+                          />
+                        )}
+                        <div className="flex-1">
+                          <div className="font-medium">{item.name}</div>
+                          {item.description && (
+                            <div className="text-sm text-gray-500">{item.description}</div>
+                          )}
+                        </div>
+                        <div className="font-semibold">${item.price}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="customer_phone">Phone *</Label>
-                  <Input
-                    id="customer_phone"
-                    value={newOrder.customer_phone}
-                    onChange={(e) => setNewOrder({...newOrder, customer_phone: e.target.value})}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="customer_address">Address *</Label>
-                  <Input
-                    id="customer_address"
-                    value={newOrder.customer_address}
-                    onChange={(e) => setNewOrder({...newOrder, customer_address: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label>Order Items</Label>
-                {newOrder.items.map((item, index) => (
-                  <div key={index} className="grid grid-cols-4 gap-2 mt-2">
+              ))}
+              {menuItems.length === 0 && (
+                <p className="text-center text-gray-500 py-8">No available menu items</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Order Summary and Customer Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Order Summary</CardTitle>
+              <CardDescription>Review selected items and add customer details</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                createOrderMutation.mutate();
+              }} className="space-y-4">
+                {/* Customer Details */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold">Customer Details</h4>
+                  <div>
+                    <Label htmlFor="customer_name">Customer Name *</Label>
                     <Input
-                      placeholder="Item name"
-                      value={item.name}
-                      onChange={(e) => updateOrderItem(index, 'name', e.target.value)}
+                      id="customer_name"
+                      value={customerData.name}
+                      onChange={(e) => setCustomerData({...customerData, name: e.target.value})}
                       required
                     />
-                    <Input
-                      type="number"
-                      placeholder="Quantity"
-                      value={item.quantity}
-                      onChange={(e) => updateOrderItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                      min="1"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Price"
-                      value={item.price}
-                      onChange={(e) => updateOrderItem(index, 'price', parseFloat(e.target.value) || 0)}
-                      step="0.01"
-                      min="0"
-                    />
-                    <Button type="button" variant="outline" onClick={addOrderItem}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
                   </div>
-                ))}
-              </div>
+                  <div>
+                    <Label htmlFor="customer_phone">Phone *</Label>
+                    <Input
+                      id="customer_phone"
+                      value={customerData.phone}
+                      onChange={(e) => setCustomerData({...customerData, phone: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="customer_address">Address *</Label>
+                    <Input
+                      id="customer_address"
+                      value={customerData.address}
+                      onChange={(e) => setCustomerData({...customerData, address: e.target.value})}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Selected Items */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold">Selected Items ({selectedItems.length})</h4>
+                  {selectedItems.length > 0 ? (
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {selectedItems.map((item) => (
+                        <div key={item.menuItem.id} className="flex items-center justify-between p-2 border rounded">
+                          <div className="flex-1">
+                            <div className="font-medium">{item.menuItem.name}</div>
+                            <div className="text-sm text-gray-500">${item.menuItem.price} each</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateItemQuantity(item.menuItem.id, item.quantity - 1)}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="w-8 text-center">{item.quantity}</span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateItemQuantity(item.menuItem.id, item.quantity + 1)}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => removeItemFromOrder(item.menuItem.id)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-4">No items selected</p>
+                  )}
+                </div>
+
+                {/* Total */}
+                <div className="border-t pt-4">
+                  <div className="flex justify-between items-center text-lg font-semibold">
+                    <span>Total Amount:</span>
+                    <span>${calculateTotal().toFixed(2)}</span>
+                  </div>
+                </div>
               
-              <div className="flex gap-2">
-                <Button type="submit" disabled={createOrderMutation.isPending}>
-                  {createOrderMutation.isPending ? 'Creating...' : 'Create Order'}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setShowCreateForm(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+                <div className="flex gap-2">
+                  <Button 
+                    type="submit" 
+                    disabled={createOrderMutation.isPending || selectedItems.length === 0}
+                    className="flex-1"
+                  >
+                    {createOrderMutation.isPending ? 'Creating...' : 'Place Order'}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={resetForm}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Orders Table */}
@@ -423,7 +641,6 @@ export const OrderManagement = () => {
                 <TableHead>Total</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Payment</TableHead>
-                <TableHead>Created</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -445,18 +662,61 @@ export const OrderManagement = () => {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge className={order.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
-                      {order.payment_status}
-                    </Badge>
+                    <Select
+                      value={order.payment_status}
+                      onValueChange={(status) => updatePaymentStatusMutation.mutate({ 
+                        orderId: order.id, 
+                        paymentStatus: status 
+                      })}
+                    >
+                      <SelectTrigger className="w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                        <SelectItem value="failed">Failed</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
-                  <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1 flex-wrap">
+                      {!order.kitchen_assigned_at && order.status === 'pending' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => assignToKitchenMutation.mutate(order.id)}
+                          title="Assign to Kitchen"
+                        >
+                          Kitchen
+                        </Button>
+                      )}
+                      
+                      {!order.assigned_rider_id && riders.length > 0 && (
+                        <Select
+                          onValueChange={(riderId) => assignRiderMutation.mutate({ 
+                            orderId: order.id, 
+                            riderId 
+                          })}
+                        >
+                          <SelectTrigger className="w-20">
+                            <SelectValue placeholder="Rider" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {riders.map(rider => (
+                              <SelectItem key={rider.id} value={rider.id}>
+                                {rider.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+
                       <Select
                         value={order.status}
                         onValueChange={(status) => updateOrderMutation.mutate({ orderId: order.id, status })}
                       >
-                        <SelectTrigger className="w-32">
+                        <SelectTrigger className="w-24">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -470,6 +730,7 @@ export const OrderManagement = () => {
                           <SelectItem value="cancelled">Cancelled</SelectItem>
                         </SelectContent>
                       </Select>
+                      
                       <Button
                         size="sm"
                         variant="destructive"
