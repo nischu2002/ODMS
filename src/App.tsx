@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Index from "./pages/Index";
+import About from "./pages/About";
+import Teams from "./pages/Teams";
 import Login from "./pages/Login";
 import RestaurantSignup from "./pages/RestaurantSignup";
 import DomainSetup from "./pages/DomainSetup";
@@ -70,6 +72,8 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={<Index />} />
+      <Route path="/about" element={<About />} />
+      <Route path="/teams" element={<Teams />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<RestaurantSignup />} />
       <Route path="/setup/:domain" element={<DomainSetup />} />
@@ -104,6 +108,14 @@ const AppRoutes = () => {
       />
       <Route 
         path="/restaurant-admin/orders" 
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/restaurant-admin/menu" 
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminDashboard />

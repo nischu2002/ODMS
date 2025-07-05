@@ -65,6 +65,7 @@ export type Database = {
           ingredients: string[] | null
           is_available: boolean | null
           name: string
+          photo_url: string | null
           preparation_time: number | null
           price: number
           restaurant_id: string
@@ -80,6 +81,7 @@ export type Database = {
           ingredients?: string[] | null
           is_available?: boolean | null
           name: string
+          photo_url?: string | null
           preparation_time?: number | null
           price: number
           restaurant_id: string
@@ -95,6 +97,7 @@ export type Database = {
           ingredients?: string[] | null
           is_available?: boolean | null
           name?: string
+          photo_url?: string | null
           preparation_time?: number | null
           price?: number
           restaurant_id?: string
@@ -106,6 +109,64 @@ export type Database = {
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          admin_id: string | null
+          created_at: string | null
+          id: string
+          message: string | null
+          notification_type: string
+          order_id: string | null
+          staff_id: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          admin_id?: string | null
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          notification_type: string
+          order_id?: string | null
+          staff_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          admin_id?: string | null
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          notification_type?: string
+          order_id?: string | null
+          staff_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -200,8 +261,10 @@ export type Database = {
           customer_phone: string
           estimated_delivery_time: string | null
           id: string
+          kitchen_assigned_at: string | null
           payment_status: string
           restaurant_id: string
+          rider_assigned_at: string | null
           status: string
           total_amount: number
           updated_at: string
@@ -215,8 +278,10 @@ export type Database = {
           customer_phone: string
           estimated_delivery_time?: string | null
           id?: string
+          kitchen_assigned_at?: string | null
           payment_status?: string
           restaurant_id: string
+          rider_assigned_at?: string | null
           status: string
           total_amount: number
           updated_at?: string
@@ -230,8 +295,10 @@ export type Database = {
           customer_phone?: string
           estimated_delivery_time?: string | null
           id?: string
+          kitchen_assigned_at?: string | null
           payment_status?: string
           restaurant_id?: string
+          rider_assigned_at?: string | null
           status?: string
           total_amount?: number
           updated_at?: string
