@@ -18,6 +18,7 @@ export interface Restaurant {
   phone: string;
   email: string;
   adminId?: string;
+  admin_id?: string; // Add both versions for compatibility
   createdAt: string;
   isActive: boolean;
   businessType?: string;
@@ -48,6 +49,8 @@ export interface Order {
   createdAt: string;
   estimatedDeliveryTime?: string;
   paymentStatus: 'pending' | 'paid' | 'failed';
+  kitchen_assigned_at?: string;
+  rider_assigned_at?: string;
 }
 
 export interface OrderItem {
@@ -83,4 +86,16 @@ export interface Analytics {
   pendingOrders: number;
   completedOrders: number;
   cancelledOrders: number;
+}
+
+export interface Notification {
+  id: string;
+  order_id: string;
+  staff_id: string;
+  admin_id: string;
+  notification_type: string;
+  status: 'pending' | 'approved' | 'rejected';
+  message: string;
+  created_at: string;
+  updated_at: string;
 }

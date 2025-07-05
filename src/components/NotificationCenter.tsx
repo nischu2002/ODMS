@@ -28,32 +28,34 @@ export const NotificationCenter = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch notifications
+  // For now, we'll use a simulated notifications array until the database is updated
+  // This will be replaced once the SQL migration is applied
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['notifications', restaurant?.id],
     queryFn: async () => {
       if (!restaurant?.id) return [];
       
-      const { data, error } = await supabase
-        .from('notifications')
-        .select(`
-          *,
-          users:staff_id (
-            name,
-            email
-          )
-        `)
-        .eq('admin_id', restaurant.admin_id)
-        .order('created_at', { ascending: false });
+      // Temporary: Return empty array until notifications table exists
+      // After SQL migration, this will query the actual notifications table
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('restaurant_id', restaurant.id)
+          .limit(0); // Just test the connection
 
-      if (error) throw error;
-      return data as Notification[];
+        if (error) console.log('Notifications table not ready yet');
+        return [];
+      } catch (error) {
+        console.log('Notifications feature pending database migration');
+        return [];
+      }
     },
     enabled: !!restaurant?.id,
-    refetchInterval: 10000 // Refresh every 10 seconds
+    refetchInterval: 10000
   });
 
-  // Approve deletion request
+  // Approve deletion request - temporarily disabled until notifications table exists
   const approveDeletionMutation = useMutation({
     mutationFn: async ({ notificationId, orderId }: { notificationId: string; orderId: string }) => {
       // Delete the order
@@ -64,13 +66,8 @@ export const NotificationCenter = () => {
 
       if (orderError) throw orderError;
 
-      // Update notification status
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .update({ status: 'approved' })
-        .eq('id', notificationId);
-
-      if (notificationError) throw notificationError;
+      // Will update notification status once notifications table exists
+      console.log('Order deleted, notification system pending');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications', restaurant?.id] });
@@ -83,15 +80,11 @@ export const NotificationCenter = () => {
     }
   });
 
-  // Reject deletion request
+  // Reject deletion request - temporarily disabled
   const rejectDeletionMutation = useMutation({
     mutationFn: async (notificationId: string) => {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ status: 'rejected' })
-        .eq('id', notificationId);
-
-      if (error) throw error;
+      // Will implement once notifications table exists
+      console.log('Rejection feature pending notifications table');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications', restaurant?.id] });
@@ -103,15 +96,11 @@ export const NotificationCenter = () => {
     }
   });
 
-  // Dismiss notification
+  // Dismiss notification - temporarily disabled
   const dismissNotificationMutation = useMutation({
     mutationFn: async (notificationId: string) => {
-      const { error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', notificationId);
-
-      if (error) throw error;
+      // Will implement once notifications table exists
+      console.log('Dismiss feature pending notifications table');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications', restaurant?.id] });
@@ -217,7 +206,13 @@ export const NotificationCenter = () => {
               </div>
             ))
           ) : (
-            <p className="text-center text-gray-500 py-8">No notifications</p>
+            <div className="text-center py-8">
+              <Bell className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 mb-2">No notifications</p>
+              <p className="text-sm text-gray-400">
+                Notifications system will be active after database migration
+              </p>
+            </div>
           )}
         </div>
       </CardContent>

@@ -91,28 +91,24 @@ export const StaffDashboard = () => {
     refetchInterval: 30000 // Refresh every 30 seconds
   });
 
-  // Request order deletion
+  // Request order deletion - temporarily simplified until notifications table exists
   const requestDeletionMutation = useMutation({
     mutationFn: async (orderId: string) => {
-      const { error } = await supabase
-        .from('notifications')
-        .insert({
-          order_id: orderId,
-          staff_id: user?.id,
-          admin_id: restaurant?.admin_id,
-          notification_type: 'order_deletion_request',
-          message: `Staff member ${user?.name} has requested deletion of order ${orderId.slice(0, 8)}`,
-          status: 'pending'
-        });
-
-      if (error) throw error;
+      // For now, just show a message. Will implement notifications after SQL migration
+      console.log(`Deletion request for order ${orderId} - notifications system pending`);
+      
+      // Temporarily create a simple log entry (will be replaced with proper notifications)
+      throw new Error('Notifications system pending database migration');
     },
     onSuccess: () => {
-      toast({ title: "Deletion request sent to admin" });
+      toast({ title: "Deletion request feature pending database update" });
     },
     onError: (error) => {
-      console.error('Error requesting deletion:', error);
-      toast({ title: "Error sending deletion request", variant: "destructive" });
+      console.error('Notifications system not ready:', error);
+      toast({ 
+        title: "Deletion requests will be available after database migration", 
+        variant: "default" 
+      });
     }
   });
 
@@ -298,6 +294,7 @@ export const StaffDashboard = () => {
                         variant="outline"
                         onClick={() => requestDeletionMutation.mutate(order.id)}
                         disabled={requestDeletionMutation.isPending}
+                        title="Feature available after database migration"
                       >
                         Request Delete
                       </Button>
