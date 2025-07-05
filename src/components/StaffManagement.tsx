@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit, User, Mail, Phone, Eye, EyeOff } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, UserCheck, UserX } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,35 +17,45 @@ import {
   TableHeader,
   TableRow,
 } from './ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
+import { Badge } from './ui/badge';
 
-interface StaffMember {
+interface Staff {
   id: string;
   name: string;
   email: string;
-  phone?: string;
+  phone: string;
   role: string;
   is_active: boolean;
   created_at: string;
 }
 
 export const StaffManagement = () => {
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+  const [newStaff, setNewStaff] = useState({
     name: '',
     email: '',
     phone: '',
     password: '',
     role: 'restaurant_staff'
   });
-  const { restaurant, createStaffAccount } = useAuth();
+
+  const { restaurant } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch staff for the restaurant
+  // Fetch staff members
   const { data: staff = [], isLoading } = useQuery({
-    queryKey: ['restaurant-staff', restaurant?.id],
+    queryKey: ['staff', restaurant?.id],
     queryFn: async () => {
       if (!restaurant?.id) return [];
       
@@ -57,52 +67,84 @@ export const StaffManagement = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as StaffMember[];
+      return data as Staff[];
     },
     enabled: !!restaurant?.id
   });
 
-  // Create staff mutation
+  // Create staff mutation - Fixed to prevent admin logout
   const createStaffMutation = useMutation({
-    mutationFn: async (staffData: any) => {
-      const result = await createStaffAccount(staffData);
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create staff account');
+    mutationFn: async (staffData: typeof newStaff) => {
+      if (!restaurant?.id) throw new Error('No restaurant selected');
+
+      // Create user account without affecting current session
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: staffData.email,
+        password: staffData.password,
+        email_confirm: true,
+        user_metadata: {
+          name: staffData.name,
+          role: staffData.role
+        }
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // Insert user data into our users table
+        const { error: userError } = await supabase
+          .from('users')
+          .insert({
+            id: authData.user.id,
+            name: staffData.name,
+            email: staffData.email,
+            phone: staffData.phone,
+            role: staffData.role,
+            restaurant_id: restaurant.id,
+            is_active: true
+          });
+
+        if (userError) throw userError;
       }
-      return result;
+
+      return authData.user;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['restaurant-staff', restaurant?.id] });
-      toast({ title: "Staff member added successfully", description: "Login credentials have been created." });
-      resetForm();
+      queryClient.invalidateQueries({ queryKey: ['staff', restaurant?.id] });
+      toast({ title: "Staff member created successfully" });
+      setShowCreateForm(false);
+      setNewStaff({
+        name: '',
+        email: '',
+        phone: '',
+        password: '',
+        role: 'restaurant_staff'
+      });
     },
     onError: (error: any) => {
       console.error('Error creating staff:', error);
-      toast({ title: "Error adding staff member", description: error.message, variant: "destructive" });
+      toast({ 
+        title: "Error creating staff member", 
+        description: error.message || "Please try again",
+        variant: "destructive" 
+      });
     }
   });
 
   // Update staff mutation
   const updateStaffMutation = useMutation({
-    mutationFn: async ({ id, ...staffData }: any) => {
-      const { data, error } = await supabase
+    mutationFn: async ({ staffId, updates }: { staffId: string; updates: Partial<Staff> }) => {
+      const { error } = await supabase
         .from('users')
-        .update({
-          name: staffData.name,
-          email: staffData.email,
-          phone: staffData.phone
-        })
-        .eq('id', id)
-        .select()
-        .single();
+        .update(updates)
+        .eq('id', staffId);
 
       if (error) throw error;
-      return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['restaurant-staff', restaurant?.id] });
+      queryClient.invalidateQueries({ queryKey: ['staff', restaurant?.id] });
       toast({ title: "Staff member updated successfully" });
-      resetForm();
+      setEditingStaff(null);
     },
     onError: (error) => {
       console.error('Error updating staff:', error);
@@ -110,66 +152,38 @@ export const StaffManagement = () => {
     }
   });
 
-  // Toggle active status mutation
-  const toggleActiveMutation = useMutation({
-    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+  // Delete staff mutation
+  const deleteStaffMutation = useMutation({
+    mutationFn: async (staffId: string) => {
       const { error } = await supabase
         .from('users')
-        .update({ is_active: !is_active })
-        .eq('id', id);
+        .delete()
+        .eq('id', staffId);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['restaurant-staff', restaurant?.id] });
-      toast({ title: "Staff status updated successfully" });
+      queryClient.invalidateQueries({ queryKey: ['staff', restaurant?.id] });
+      toast({ title: "Staff member deleted successfully" });
     },
     onError: (error) => {
-      console.error('Error updating staff status:', error);
-      toast({ title: "Error updating staff status", variant: "destructive" });
+      console.error('Error deleting staff:', error);
+      toast({ title: "Error deleting staff member", variant: "destructive" });
     }
   });
 
-  const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', password: '', role: 'restaurant_staff' });
-    setShowAddForm(false);
-    setEditingStaff(null);
-    setShowPassword(false);
-  };
+  const filteredStaff = staff.filter(member => {
+    const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         member.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = roleFilter === 'all' || member.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (editingStaff) {
-      updateStaffMutation.mutate({ ...editingStaff, ...formData });
-    } else {
-      // Validate password for new staff
-      if (!formData.password || formData.password.length < 6) {
-        toast({
-          title: "Password Required",
-          description: "Password must be at least 6 characters long.",
-          variant: "destructive"
-        });
-        return;
-      }
-      createStaffMutation.mutate(formData);
-    }
-  };
-
-  const handleEdit = (staff: StaffMember) => {
-    setEditingStaff(staff);
-    setFormData({
-      name: staff.name,
-      email: staff.email,
-      phone: staff.phone || '',
-      password: '', // Don't prefill password
-      role: staff.role
+  const toggleStaffStatus = (staffId: string, currentStatus: boolean) => {
+    updateStaffMutation.mutate({
+      staffId,
+      updates: { is_active: !currentStatus }
     });
-    setShowAddForm(true);
-  };
-
-  const handleToggleActive = (staff: StaffMember) => {
-    toggleActiveMutation.mutate({ id: staff.id, is_active: staff.is_active });
   };
 
   if (isLoading) {
@@ -179,30 +193,60 @@ export const StaffManagement = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Restaurant Staff Management</h2>
-        <Button onClick={() => setShowAddForm(true)} className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Staff Management</h2>
+        <Button onClick={() => setShowCreateForm(true)} className="flex items-center gap-2">
           <Plus className="h-4 w-4" />
           Add Staff Member
         </Button>
       </div>
 
-      {showAddForm && (
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex gap-4 items-center">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search staff by name or email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="restaurant_staff">Restaurant Staff</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Create Staff Form */}
+      {showCreateForm && (
         <Card>
           <CardHeader>
-            <CardTitle>{editingStaff ? 'Edit Staff Member' : 'Add New Staff Member'}</CardTitle>
-            <CardDescription>
-              {editingStaff ? 'Update staff member information' : 'Create a new staff account with login credentials'}
-            </CardDescription>
+            <CardTitle>Add New Staff Member</CardTitle>
+            <CardDescription>Create a new staff account for your restaurant</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              createStaffMutation.mutate(newStaff);
+            }} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="name">Full Name *</Label>
                   <Input
                     id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    value={newStaff.name}
+                    onChange={(e) => setNewStaff({...newStaff, name: e.target.value})}
                     required
                   />
                 </div>
@@ -211,66 +255,37 @@ export const StaffManagement = () => {
                   <Input
                     id="email"
                     type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    value={newStaff.email}
+                    onChange={(e) => setNewStaff({...newStaff, email: e.target.value})}
                     required
                   />
                 </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="phone">Phone</Label>
                   <Input
                     id="phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    value={newStaff.phone}
+                    onChange={(e) => setNewStaff({...newStaff, phone: e.target.value})}
                   />
                 </div>
-                {!editingStaff && (
-                  <div>
-                    <Label htmlFor="password">Password *</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        value={formData.password}
-                        onChange={(e) => setFormData({...formData, password: e.target.value})}
-                        required
-                        minLength={6}
-                        placeholder="Minimum 6 characters"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {!editingStaff && (
-                <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
-                  <strong>Note:</strong> The staff member will receive login credentials and can use them to access the system.
+                <div>
+                  <Label htmlFor="password">Password *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={newStaff.password}
+                    onChange={(e) => setNewStaff({...newStaff, password: e.target.value})}
+                    required
+                    minLength={6}
+                  />
                 </div>
-              )}
-
+              </div>
+              
               <div className="flex gap-2">
-                <Button 
-                  type="submit" 
-                  disabled={createStaffMutation.isPending || updateStaffMutation.isPending}
-                >
-                  {createStaffMutation.isPending || updateStaffMutation.isPending 
-                    ? 'Saving...' 
-                    : editingStaff ? 'Update Staff Member' : 'Create Staff Account'
-                  }
+                <Button type="submit" disabled={createStaffMutation.isPending}>
+                  {createStaffMutation.isPending ? 'Creating...' : 'Create Staff Member'}
                 </Button>
-                <Button type="button" variant="outline" onClick={resetForm}>
+                <Button type="button" variant="outline" onClick={() => setShowCreateForm(false)}>
                   Cancel
                 </Button>
               </div>
@@ -279,10 +294,11 @@ export const StaffManagement = () => {
         </Card>
       )}
 
+      {/* Staff Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Staff Members ({staff.length})</CardTitle>
-          <CardDescription>Manage your restaurant staff</CardDescription>
+          <CardTitle>Staff Members ({filteredStaff.length})</CardTitle>
+          <CardDescription>Manage your restaurant staff members</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -292,42 +308,37 @@ export const StaffManagement = () => {
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Created</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {staff.map((member) => (
+              {filteredStaff.map((member) => (
                 <TableRow key={member.id}>
                   <TableCell className="font-medium">{member.name}</TableCell>
                   <TableCell>{member.email}</TableCell>
                   <TableCell>{member.phone || 'N/A'}</TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      member.is_active 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
+                    <Badge className={member.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
                       {member.is_active ? 'Active' : 'Inactive'}
-                    </span>
+                    </Badge>
                   </TableCell>
+                  <TableCell>{new Date(member.created_at).toLocaleDateString()}</TableCell>
                   <TableCell>
                     <div className="flex gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleEdit(member)}
-                        className="flex items-center gap-1"
+                        onClick={() => toggleStaffStatus(member.id, member.is_active)}
                       >
-                        <Edit className="h-3 w-3" />
-                        Edit
+                        {member.is_active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                       </Button>
                       <Button
                         size="sm"
-                        variant={member.is_active ? "destructive" : "default"}
-                        onClick={() => handleToggleActive(member)}
-                        disabled={toggleActiveMutation.isPending}
+                        variant="destructive"
+                        onClick={() => deleteStaffMutation.mutate(member.id)}
                       >
-                        {member.is_active ? 'Deactivate' : 'Activate'}
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -335,8 +346,8 @@ export const StaffManagement = () => {
               ))}
             </TableBody>
           </Table>
-          {staff.length === 0 && (
-            <p className="text-center text-gray-500 py-8">No staff members yet. Add your first staff member to get started.</p>
+          {filteredStaff.length === 0 && (
+            <p className="text-center text-gray-500 py-8">No staff members found</p>
           )}
         </CardContent>
       </Card>
