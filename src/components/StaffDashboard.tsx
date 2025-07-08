@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -15,12 +14,17 @@ import {
   CheckCircle,
   BarChart3,
   Users,
-  Bell
+  Bell,
+  Plus,
+  LayoutDashboard
 } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from './ui/badge';
+import { OrderManagement } from './OrderManagement';
+import { MenuManagement } from './MenuManagement';
+import { CreateOrderForm } from './CreateOrderForm';
 
 export const StaffDashboard = () => {
   const { restaurant, user } = useAuth();
@@ -96,113 +100,14 @@ export const StaffDashboard = () => {
     refetchInterval: 30000 // Refresh every 30 seconds
   });
 
-  // Request order deletion - temporarily simplified until notifications table exists
-  const requestDeletionMutation = useMutation({
-    mutationFn: async (orderId: string) => {
-      // For now, just show a message. Will implement notifications after SQL migration
-      console.log(`Deletion request for order ${orderId} - notifications system pending`);
-      
-      // Temporarily create a simple log entry (will be replaced with proper notifications)
-      throw new Error('Notifications system pending database migration');
-    },
-    onSuccess: () => {
-      toast({ title: "Deletion request feature pending database update" });
-    },
-    onError: (error) => {
-      console.error('Notifications system not ready:', error);
-      toast({ 
-        title: "Deletion requests will be available after database migration", 
-        variant: "default" 
-      });
-    }
-  });
-
   const renderTabContent = () => {
     switch (activeTab) {
       case 'orders':
-        return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Order Management</h2>
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Orders</CardTitle>
-                <CardDescription>Manage and track recent orders</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {dashboardData?.recentOrders?.length ? (
-                    dashboardData.recentOrders.map((order: any) => (
-                      <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <div className="font-medium">{order.customer_name}</div>
-                          <div className="text-sm text-gray-500">
-                            {order.customer_phone} • {new Date(order.created_at).toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <div className="font-medium">${order.total_amount}</div>
-                            <Badge className={
-                              order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                              'bg-blue-100 text-blue-800'
-                            }>
-                              {order.status}
-                            </Badge>
-                          </div>
-                          {order.status !== 'delivered' && order.status !== 'cancelled' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => requestDeletionMutation.mutate(order.id)}
-                              disabled={requestDeletionMutation.isPending}
-                              title="Feature available after database migration"
-                            >
-                              Request Delete
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-center text-gray-500 py-8">No recent orders</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        );
+        return <OrderManagement />;
       case 'menu':
-        return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Menu Insights</h2>
-            <Card>
-              <CardHeader>
-                <CardTitle>Most Ordered Items</CardTitle>
-                <CardDescription>Popular menu items based on total orders</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {dashboardData?.mostOrderedItems?.length ? (
-                    dashboardData.mostOrderedItems.map((item, index) => (
-                      <div key={item.name} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-semibold text-blue-800">
-                            {index + 1}
-                          </div>
-                          <span className="font-medium">{item.name}</span>
-                        </div>
-                        <Badge variant="secondary">{item.count} orders</Badge>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-center text-gray-500 py-8">No order data available</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        );
+        return <MenuManagement />;
+      case 'create-order':
+        return <CreateOrderForm />;
       case 'analytics':
         return (
           <div className="space-y-6">
@@ -415,9 +320,9 @@ export const StaffDashboard = () => {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
+            <LayoutDashboard className="h-4 w-4" />
             Overview
           </TabsTrigger>
           <TabsTrigger value="orders" className="flex items-center gap-2">
@@ -428,8 +333,12 @@ export const StaffDashboard = () => {
             <ChefHat className="h-4 w-4" />
             Menu
           </TabsTrigger>
+          <TabsTrigger value="create-order" className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Create Order
+          </TabsTrigger>
           <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
+            <BarChart3 className="h-4 w-4" />
             Analytics
           </TabsTrigger>
           <TabsTrigger value="notifications" className="flex items-center gap-2">

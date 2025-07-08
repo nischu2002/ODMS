@@ -120,6 +120,7 @@ export const RiderManagement = () => {
         phone: '',
         password: ''
       });
+      // Don't redirect - stay on admin page
     },
     onError: (error: any) => {
       console.error('Error creating rider:', error);

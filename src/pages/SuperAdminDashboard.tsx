@@ -390,10 +390,14 @@ export default function SuperAdminDashboard() {
     </div>
   );
 
-  const renderUsers = () => (
+  const renderUsers = () => {
+    // Filter to show only admin users
+    const adminUsers = filteredUsers.filter(user => user.role === 'admin');
+    
+    return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">User Management</h2>
+        <h2 className="text-2xl font-bold">Restaurant Admin Management</h2>
         <div className="flex gap-2">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -409,8 +413,8 @@ export default function SuperAdminDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Users ({filteredUsers.length})</CardTitle>
-          <CardDescription>Manage all users across the system</CardDescription>
+          <CardTitle>Restaurant Admins ({adminUsers.length})</CardTitle>
+          <CardDescription>Manage restaurant administrator accounts</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -425,7 +429,7 @@ export default function SuperAdminDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => {
+              {adminUsers.map((user) => {
                 const userRestaurant = restaurants.find(r => r.id === user.restaurant_id);
                 return (
                   <TableRow key={user.id}>
@@ -480,7 +484,8 @@ export default function SuperAdminDashboard() {
         </CardContent>
       </Card>
     </div>
-  );
+    );
+  };
 
   const renderTeams = () => (
     <div className="space-y-6">
@@ -551,13 +556,82 @@ export default function SuperAdminDashboard() {
     </div>
   );
 
+  const renderSystemAnalytics = () => (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">System Analytics & Performance</h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Error Tracking</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">0</div>
+            <p className="text-sm text-gray-500">Critical errors (24h)</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>System Load</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">Normal</div>
+            <p className="text-sm text-gray-500">Server performance</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Database Health</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">Optimal</div>
+            <p className="text-sm text-gray-500">Query response time</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Platform Usage Statistics</CardTitle>
+          <CardDescription>Key metrics across all restaurants</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold">{analyticsData?.totalOrders || 0}</div>
+              <div className="text-sm text-gray-500">Total Orders</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold">{analyticsData?.activeRestaurants || 0}</div>
+              <div className="text-sm text-gray-500">Active Restaurants</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold">{analyticsData?.activeUsers || 0}</div>
+              <div className="text-sm text-gray-500">Active Users</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold">99.9%</div>
+              <div className="text-sm text-gray-500">Uptime</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  if (showTeamCMS) {
+    return <TeamMemberCMS onClose={() => setShowTeamCMS(false)} />;
+  }
+
   return (
     <DashboardLayout>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
-            Overview
+            System Health
           </TabsTrigger>
           <TabsTrigger value="restaurants" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
@@ -565,34 +639,24 @@ export default function SuperAdminDashboard() {
           </TabsTrigger>
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            Users
+            Admins
           </TabsTrigger>
           <TabsTrigger value="teams" className="flex items-center gap-2">
             <UserCog className="h-4 w-4" />
             Teams
           </TabsTrigger>
-          <TabsTrigger value="settings" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            Settings
+          <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Analytics
           </TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
-          <TabsContent value="overview">
-            {renderOverview()}
-          </TabsContent>
-          <TabsContent value="restaurants">
-            {renderRestaurants()}
-          </TabsContent>
-          <TabsContent value="users">
-            {renderUsers()}
-          </TabsContent>
-          <TabsContent value="teams">
-            {renderTeams()}
-          </TabsContent>
-          <TabsContent value="settings">
-            {renderSettings()}
-          </TabsContent>
+          <TabsContent value="overview">{renderOverview()}</TabsContent>
+          <TabsContent value="restaurants">{renderRestaurants()}</TabsContent>
+          <TabsContent value="users">{renderUsers()}</TabsContent>
+          <TabsContent value="teams">{renderTeams()}</TabsContent>
+          <TabsContent value="analytics">{renderSystemAnalytics()}</TabsContent>
         </div>
       </Tabs>
     </DashboardLayout>

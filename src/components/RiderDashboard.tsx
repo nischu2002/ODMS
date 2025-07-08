@@ -3,12 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
-import { MapPin, Truck, Clock, CheckCircle, Navigation, Phone, User } from 'lucide-react';
+import { MapPin, Truck, Clock, CheckCircle, Navigation, Phone, User, LayoutDashboard } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { RiderLocationManager } from './RiderLocationManager';
 
 interface Order {
   id: string;
@@ -30,6 +32,7 @@ interface Order {
 
 export const RiderDashboard = () => {
   const [isOnline, setIsOnline] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
   const { restaurant, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -202,7 +205,7 @@ export const RiderDashboard = () => {
     return <div className="flex items-center justify-center p-8">Loading orders...</div>;
   }
 
-  return (
+  const renderDashboardContent = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Rider Dashboard</h1>
@@ -479,6 +482,36 @@ export const RiderDashboard = () => {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'location':
+        return <RiderLocationManager />;
+      default:
+        return renderDashboardContent();
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="dashboard" className="flex items-center gap-2">
+            <LayoutDashboard className="h-4 w-4" />
+            Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="location" className="flex items-center gap-2">
+            <MapPin className="h-4 w-4" />
+            Location
+          </TabsTrigger>
+        </TabsList>
+
+        <div className="mt-6">
+          {renderTabContent()}
+        </div>
+      </Tabs>
     </div>
   );
 };
