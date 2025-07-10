@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
-import { Menu, X, Store } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 export const ModernNavbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -20,9 +20,11 @@ export const ModernNavbar = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-              <Store className="h-6 w-6 text-white" />
-            </div>
+            <img 
+              src="/lovable-uploads/a42ffb66-427c-426e-9a33-2ff9b05ee0b3.png" 
+              alt="ODMS Logo" 
+              className="w-12 h-12 rounded-xl"
+            />
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 ODMS

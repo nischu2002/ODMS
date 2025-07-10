@@ -235,9 +235,9 @@ export default function AdminDashboard() {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${dashboardData?.todayRevenue?.toFixed(2) || '0.00'}</div>
+                  <div className="text-2xl font-bold">Nrs. {dashboardData?.todayRevenue?.toFixed(2) || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">
-                    Total: ${dashboardData?.totalRevenue?.toFixed(2) || '0.00'}
+                    Total: Nrs. {dashboardData?.totalRevenue?.toFixed(2) || '0.00'}
                   </p>
                 </CardContent>
               </Card>
@@ -285,7 +285,7 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-medium">${order.total_amount}</div>
+                          <div className="font-medium">Nrs. {order.total_amount}</div>
                           <div className={`text-sm px-2 py-1 rounded-full ${
                             order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                             order.status === 'delivered' ? 'bg-green-100 text-green-800' :

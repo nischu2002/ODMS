@@ -8,7 +8,6 @@ import {
   ShoppingBag, 
   BarChart3, 
   Settings,
-  Store,
   ChefHat
 } from 'lucide-react';
 
@@ -46,7 +45,11 @@ export const AdminSidebar = () => {
     <div className="w-64 bg-white border-r border-gray-200 h-full">
       <div className="p-6">
         <div className="flex items-center space-x-2">
-          <Store className="h-8 w-8 text-blue-600" />
+          <img 
+            src="/lovable-uploads/a42ffb66-427c-426e-9a33-2ff9b05ee0b3.png" 
+            alt="ODMS Logo" 
+            className="w-8 h-8 rounded-lg"
+          />
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Restaurant Admin</h2>
             <p className="text-sm text-gray-600">Management Portal</p>
@@ -77,20 +80,6 @@ export const AdminSidebar = () => {
           );
         })}
       </nav>
-      
-      {/* Additional Info Section */}
-      <div className="absolute bottom-4 left-4 right-4">
-        <div className="bg-gray-50 rounded-lg p-3">
-          <div className="text-xs text-gray-600">
-            <div className="font-medium mb-1">Quick Actions</div>
-            <div className="space-y-1">
-              <div>• Create new orders</div>
-              <div>• Manage staff & riders</div>
-              <div>• View analytics</div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

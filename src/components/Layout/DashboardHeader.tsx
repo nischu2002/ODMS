@@ -11,9 +11,16 @@ export const DashboardHeader = () => {
     <header className="bg-white border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold text-gray-900">
-            {restaurant ? restaurant.name : 'ODMS Admin'}
-          </h1>
+          <div className="flex items-center space-x-3">
+            <img 
+              src="/lovable-uploads/a42ffb66-427c-426e-9a33-2ff9b05ee0b3.png" 
+              alt="ODMS Logo" 
+              className="w-8 h-8 rounded-lg"
+            />
+            <h1 className="text-2xl font-bold text-gray-900">
+              {restaurant ? restaurant.name : 'ODMS Admin'}
+            </h1>
+          </div>
           <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium capitalize">
             {user?.role?.replace('_', ' ')}
           </span>

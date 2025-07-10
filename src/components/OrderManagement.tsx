@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -498,7 +497,7 @@ export const OrderManagement = () => {
                             <div className="text-sm text-gray-500">{item.description}</div>
                           )}
                         </div>
-                        <div className="font-semibold">${item.price}</div>
+                        <div className="font-semibold">Nrs. {item.price}</div>
                       </div>
                     ))}
                   </div>
@@ -562,7 +561,7 @@ export const OrderManagement = () => {
                         <div key={item.menuItem.id} className="flex items-center justify-between p-2 border rounded">
                           <div className="flex-1">
                             <div className="font-medium">{item.menuItem.name}</div>
-                            <div className="text-sm text-gray-500">${item.menuItem.price} each</div>
+                            <div className="text-sm text-gray-500">Nrs. {item.menuItem.price} each</div>
                           </div>
                           <div className="flex items-center gap-2">
                             <Button
@@ -603,7 +602,7 @@ export const OrderManagement = () => {
                 <div className="border-t pt-4">
                   <div className="flex justify-between items-center text-lg font-semibold">
                     <span>Total Amount:</span>
-                    <span>${calculateTotal().toFixed(2)}</span>
+                    <span>Nrs. {calculateTotal().toFixed(2)}</span>
                   </div>
                 </div>
               
@@ -655,7 +654,7 @@ export const OrderManagement = () => {
                     </div>
                   </TableCell>
                   <TableCell>{order.order_items?.length || 0} items</TableCell>
-                  <TableCell>${order.total_amount}</TableCell>
+                  <TableCell>Nrs. {order.total_amount}</TableCell>
                   <TableCell>
                     <Badge className={getStatusColor(order.status)}>
                       {order.status}

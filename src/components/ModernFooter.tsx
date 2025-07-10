@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Store, Mail, Phone, MapPin, Twitter, Facebook, Instagram, Linkedin } from 'lucide-react';
+import { Mail, Phone, MapPin, Twitter, Facebook, Instagram, Linkedin } from 'lucide-react';
 
 export const ModernFooter = () => {
   const currentYear = new Date().getFullYear();
@@ -29,7 +29,7 @@ export const ModernFooter = () => {
       { name: 'Privacy Policy', href: '/privacy' },
       { name: 'Terms of Service', href: '/terms' },
       { name: 'Cookie Policy', href: '/cookies' },
-      { name: 'GDPR Compliance', href: '/gdpr' },
+      { name: 'Compliance', href: '/compliance' },
     ],
   };
 
@@ -48,9 +48,11 @@ export const ModernFooter = () => {
           {/* Brand Section */}
           <div className="lg:col-span-2">
             <div className="flex items-center space-x-3 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                <Store className="h-7 w-7 text-white" />
-              </div>
+              <img 
+                src="/lovable-uploads/a42ffb66-427c-426e-9a33-2ff9b05ee0b3.png" 
+                alt="ODMS Logo" 
+                className="w-12 h-12 rounded-xl"
+              />
               <div>
                 <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                   ODMS
@@ -67,15 +69,15 @@ export const ModernFooter = () => {
             <div className="space-y-3">
               <div className="flex items-center space-x-3 text-gray-300">
                 <Mail className="h-5 w-5 text-blue-400" />
-                <span>support@odms.com</span>
+                <span>admin@odms.com</span>
               </div>
               <div className="flex items-center space-x-3 text-gray-300">
                 <Phone className="h-5 w-5 text-blue-400" />
-                <span>+1 (555) 123-4567</span>
+                <span>+977 9702398193</span>
               </div>
               <div className="flex items-center space-x-3 text-gray-300">
                 <MapPin className="h-5 w-5 text-blue-400" />
-                <span>San Francisco, CA</span>
+                <span>Kathmandu Nepal</span>
               </div>
             </div>
           </div>
