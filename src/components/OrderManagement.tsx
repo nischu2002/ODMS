@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -47,7 +46,7 @@ export const OrderManagement = () => {
     totalAmount: number;
   } | null>(null);
   
-  const { createDeletionRequest } = useNotifications();
+  const { createDeletionRequest, createRiderAssignmentNotification } = useNotifications();
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['orders', restaurant?.id],
@@ -170,7 +169,7 @@ export const OrderManagement = () => {
       const order = orders.find(o => o.id === orderId);
       if (order && data.assigned_rider) {
         const message = `New delivery assignment: Order from ${order.customer_name} (Nrs. ${order.total_amount})`;
-        await createRiderAssignmentNotification.mutate({
+        await createRiderAssignmentNotification.mutateAsync({
           orderId,
           riderId,
           message
