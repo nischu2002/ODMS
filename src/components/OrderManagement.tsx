@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -46,7 +47,7 @@ export const OrderManagement = () => {
     totalAmount: number;
   } | null>(null);
   
-  const { createRiderAssignmentNotification } = useNotifications();
+  const { createDeletionRequest } = useNotifications();
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['orders', restaurant?.id],
@@ -129,6 +130,25 @@ export const OrderManagement = () => {
     }
   });
 
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await supabase
+        .from('orders')
+        .delete()
+        .eq('id', orderId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast({ title: "Order deleted successfully" });
+    },
+    onError: (error) => {
+      console.error('Delete error:', error);
+      toast({ title: "Error deleting order", variant: "destructive" });
+    }
+  });
+
   const assignRiderMutation = useMutation({
     mutationFn: async ({ orderId, riderId }: { orderId: string; riderId: string }) => {
       const updates = {
@@ -170,12 +190,20 @@ export const OrderManagement = () => {
   });
 
   const handleDeleteClick = (order: any) => {
-    setOrderToDelete({
-      id: order.id,
-      customerName: order.customer_name,
-      totalAmount: order.total_amount
-    });
-    setShowDeletionDialog(true);
+    // Admin can delete directly, staff must request deletion
+    if (user?.role === 'admin') {
+      if (window.confirm(`Are you sure you want to delete the order for ${order.customer_name}?`)) {
+        deleteOrderMutation.mutate(order.id);
+      }
+    } else {
+      // Staff member - show deletion request dialog
+      setOrderToDelete({
+        id: order.id,
+        customerName: order.customer_name,
+        totalAmount: order.total_amount
+      });
+      setShowDeletionDialog(true);
+    }
   };
 
   const handleStatusChange = (orderId: string, newStatus: string) => {
@@ -226,8 +254,6 @@ export const OrderManagement = () => {
     return <div className="flex items-center justify-center p-8">Loading orders...</div>;
   }
 
-  const canDelete = user?.role === 'admin' || user?.role === 'restaurant_staff' || user?.role === 'rider';
-
   return (
     <>
       <Card>
@@ -264,16 +290,14 @@ export const OrderManagement = () => {
                           <Eye className="h-4 w-4" />
                         </Button>
                         
-                        {canDelete && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDeleteClick(order)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteClick(order)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </div>

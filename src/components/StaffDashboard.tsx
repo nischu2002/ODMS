@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
@@ -25,12 +26,38 @@ import { Badge } from './ui/badge';
 import { OrderManagement } from './OrderManagement';
 import { MenuManagement } from './MenuManagement';
 import { CreateOrderForm } from './CreateOrderForm';
+import { StaffManagement } from './StaffManagement';
+import { RiderManagement } from './RiderManagement';
+import { NotificationCenter } from './NotificationCenter';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export const StaffDashboard = () => {
   const { restaurant, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('overview');
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Get tab from URL parameters
+  const urlParams = new URLSearchParams(location.search);
+  const urlTab = urlParams.get('tab');
+  const [activeTab, setActiveTab] = useState(urlTab || 'overview');
+
+  // Update URL when tab changes
+  useEffect(() => {
+    if (urlTab && urlTab !== activeTab) {
+      setActiveTab(urlTab);
+    }
+  }, [urlTab]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (tab === 'overview') {
+      navigate('/restaurant');
+    } else {
+      navigate(`/restaurant?tab=${tab}`);
+    }
+  };
 
   // Fetch staff dashboard data
   const { data: dashboardData, isLoading } = useQuery({
@@ -106,12 +133,18 @@ export const StaffDashboard = () => {
         return <OrderManagement />;
       case 'menu':
         return <MenuManagement />;
+      case 'kitchen':
+        return <OrderManagement />;
       case 'create-order':
         return <CreateOrderForm />;
+      case 'staff':
+        return user?.role === 'admin' ? <StaffManagement /> : <div className="text-center py-8 text-gray-500">Access denied. Admin only.</div>;
+      case 'riders':
+        return user?.role === 'admin' ? <RiderManagement /> : <div className="text-center py-8 text-gray-500">Access denied. Admin only.</div>;
       case 'analytics':
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Staff Analytics</h2>
+            <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card>
                 <CardHeader>
@@ -147,29 +180,15 @@ export const StaffDashboard = () => {
           </div>
         );
       case 'notifications':
-        return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Notifications</h2>
-            <Card>
-              <CardHeader>
-                <CardTitle>System Notifications</CardTitle>
-                <CardDescription>Important updates and alerts</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-gray-500">
-                  <Bell className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>Notification system will be available after database migration</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        );
+        return <NotificationCenter />;
       default:
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">Staff Dashboard</h1>
+                <h1 className="text-3xl font-bold">
+                  {user?.role === 'admin' ? 'Admin Dashboard' : 'Staff Dashboard'}
+                </h1>
                 <p className="text-gray-600">Welcome back, {user?.name}! Here's your daily overview.</p>
               </div>
             </div>
@@ -317,34 +336,37 @@ export const StaffDashboard = () => {
     );
   }
 
+  const getTabsList = () => {
+    const baseTabs = [
+      { value: 'overview', label: 'Overview', icon: LayoutDashboard },
+      { value: 'orders', label: 'Orders', icon: ShoppingBag },
+      { value: 'menu', label: 'Menu', icon: ChefHat },
+      { value: 'create-order', label: 'Create Order', icon: Plus },
+      { value: 'analytics', label: 'Analytics', icon: BarChart3 },
+      { value: 'notifications', label: 'Notifications', icon: Bell },
+    ];
+
+    // Add admin-only tabs
+    if (user?.role === 'admin') {
+      baseTabs.push(
+        { value: 'staff', label: 'Staff', icon: Users },
+        { value: 'riders', label: 'Riders', icon: Truck }
+      );
+    }
+
+    return baseTabs;
+  };
+
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <LayoutDashboard className="h-4 w-4" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="orders" className="flex items-center gap-2">
-            <ShoppingBag className="h-4 w-4" />
-            Orders
-          </TabsTrigger>
-          <TabsTrigger value="menu" className="flex items-center gap-2">
-            <ChefHat className="h-4 w-4" />
-            Menu
-          </TabsTrigger>
-          <TabsTrigger value="create-order" className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Create Order
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            Notifications
-          </TabsTrigger>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-8' : 'grid-cols-6'}`}>
+          {getTabsList().map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-2">
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <div className="mt-6">
