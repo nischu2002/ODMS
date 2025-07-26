@@ -35,11 +35,16 @@ export const useNotifications = () => {
         .or(`admin_id.eq.${user.id},staff_id.eq.${user.id},rider_id.eq.${user.id}`)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        throw error;
+      }
+
+      if (!data) return [];
 
       // Get user details for each notification separately
       const notificationsWithUsers = await Promise.all(
-        (data || []).map(async (notification) => {
+        data.map(async (notification) => {
           let userData = null;
           
           // Determine which user to fetch based on the notification type
@@ -49,13 +54,15 @@ export const useNotifications = () => {
           else if (notification.admin_id) userId = notification.admin_id;
 
           if (userId) {
-            const { data: userResponse } = await supabase
+            const { data: userResponse, error: userError } = await supabase
               .from('users')
               .select('name, email')
               .eq('id', userId)
               .single();
             
-            userData = userResponse;
+            if (!userError && userResponse) {
+              userData = userResponse;
+            }
           }
 
           return {

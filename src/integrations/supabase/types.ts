@@ -126,6 +126,7 @@ export type Database = {
           message: string | null
           notification_type: string
           order_id: string | null
+          rider_id: string | null
           staff_id: string | null
           status: string | null
           updated_at: string | null
@@ -137,6 +138,7 @@ export type Database = {
           message?: string | null
           notification_type: string
           order_id?: string | null
+          rider_id?: string | null
           staff_id?: string | null
           status?: string | null
           updated_at?: string | null
@@ -148,6 +150,7 @@ export type Database = {
           message?: string | null
           notification_type?: string
           order_id?: string | null
+          rider_id?: string | null
           staff_id?: string | null
           status?: string | null
           updated_at?: string | null
@@ -165,6 +168,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
