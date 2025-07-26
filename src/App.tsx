@@ -147,7 +147,15 @@ const AppRoutes = () => {
         } 
       />
       
-      {/* Restaurant Staff Routes */}
+      {/* Restaurant Staff Routes - Updated to match sidebar navigation */}
+      <Route 
+        path="/restaurant" 
+        element={
+          <ProtectedRoute allowedRoles={['restaurant_staff', 'admin']}>
+            <RestaurantDashboard />
+          </ProtectedRoute>
+        } 
+      />
       <Route 
         path="/staff-dashboard" 
         element={
@@ -174,7 +182,7 @@ const AppRoutes = () => {
           user ? (
             user.role === 'super_admin' ? <Navigate to="/admin/dashboard" replace /> :
             user.role === 'admin' ? <Navigate to="/restaurant-admin" replace /> :
-            user.role === 'restaurant_staff' ? <Navigate to="/staff-dashboard" replace /> :
+            user.role === 'restaurant_staff' ? <Navigate to="/restaurant" replace /> :
             user.role === 'rider' ? <Navigate to="/rider-dashboard" replace /> :
             <Navigate to="/login" replace />
           ) : (

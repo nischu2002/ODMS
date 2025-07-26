@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -59,7 +58,6 @@ export const StaffDashboard = () => {
     }
   };
 
-  // Fetch staff dashboard data
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['staff-dashboard', restaurant?.id],
     queryFn: async () => {

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   ShoppingBag, 
@@ -17,25 +17,25 @@ import { useAuth } from '../../context/AuthContext';
 export const RestaurantSidebar = () => {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   
   // Create navigation items based on user role
   const getNavigationItems = () => {
     const baseItems = [
-      { name: 'Dashboard', href: '/restaurant', icon: LayoutDashboard },
-      { name: 'Orders', href: '/restaurant?tab=orders', icon: ShoppingBag },
-      { name: 'Kitchen', href: '/restaurant?tab=kitchen', icon: ChefHat },
-      { name: 'Menu', href: '/restaurant?tab=menu', icon: ChefHat },
-      { name: 'Create Order', href: '/restaurant?tab=create-order', icon: Plus },
-      { name: 'Analytics', href: '/restaurant?tab=analytics', icon: BarChart3 },
-      { name: 'Notifications', href: '/restaurant?tab=notifications', icon: Bell },
+      { name: 'Dashboard', href: '/restaurant', icon: LayoutDashboard, tab: null },
+      { name: 'Orders', href: '/restaurant?tab=orders', icon: ShoppingBag, tab: 'orders' },
+      { name: 'Kitchen', href: '/restaurant?tab=kitchen', icon: ChefHat, tab: 'kitchen' },
+      { name: 'Menu', href: '/restaurant?tab=menu', icon: ChefHat, tab: 'menu' },
+      { name: 'Create Order', href: '/restaurant?tab=create-order', icon: Plus, tab: 'create-order' },
+      { name: 'Analytics', href: '/restaurant?tab=analytics', icon: BarChart3, tab: 'analytics' },
+      { name: 'Notifications', href: '/restaurant?tab=notifications', icon: Bell, tab: 'notifications' },
     ];
 
     // Add admin-only options
     if (user?.role === 'admin') {
       baseItems.push(
-        { name: 'Staff Management', href: '/restaurant?tab=staff', icon: Users },
-        { name: 'Rider Management', href: '/restaurant?tab=riders', icon: Truck },
-        { name: 'Track Riders', href: '/restaurant/track', icon: MapPin }
+        { name: 'Staff Management', href: '/restaurant?tab=staff', icon: Users, tab: 'staff' },
+        { name: 'Rider Management', href: '/restaurant?tab=riders', icon: Truck, tab: 'riders' }
       );
     }
 
@@ -44,15 +44,15 @@ export const RestaurantSidebar = () => {
 
   const navigation = getNavigationItems();
 
-  const isActiveLink = (href: string) => {
-    if (href === '/restaurant') {
+  const isActiveLink = (item: { href: string; tab: string | null }) => {
+    if (item.tab === null) {
       return location.pathname === '/restaurant' && !location.search;
     }
-    if (href.includes('tab=')) {
-      const tabParam = href.split('tab=')[1];
-      return location.search.includes(`tab=${tabParam}`);
-    }
-    return location.pathname === href;
+    return location.search.includes(`tab=${item.tab}`);
+  };
+
+  const handleNavigation = (item: { href: string; tab: string | null }) => {
+    navigate(item.href);
   };
 
   return (
@@ -66,18 +66,18 @@ export const RestaurantSidebar = () => {
       
       <nav className="px-4 space-y-1">
         {navigation.map((item) => (
-          <NavLink
+          <button
             key={item.name}
-            to={item.href}
-            className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-              isActiveLink(item.href)
+            onClick={() => handleNavigation(item)}
+            className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+              isActiveLink(item)
                 ? 'bg-green-100 text-green-700'
                 : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
             }`}
           >
             <item.icon className="mr-3 h-5 w-5" />
             {item.name}
-          </NavLink>
+          </button>
         ))}
       </nav>
     </div>
