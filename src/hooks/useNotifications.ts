@@ -4,27 +4,7 @@ import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from './use-toast';
 import { useEffect } from 'react';
-
-interface Notification {
-  id: string;
-  order_id: string;
-  staff_id: string | null;
-  admin_id: string | null;
-  rider_id: string | null;
-  notification_type: string;
-  status: string;
-  message: string;
-  created_at: string;
-  updated_at: string;
-  users?: {
-    name: string;
-    email: string;
-  };
-  orders?: {
-    customer_name: string;
-    total_amount: number;
-  };
-}
+import { Notification } from '../types';
 
 export const useNotifications = () => {
   const { user, restaurant } = useAuth();
@@ -40,15 +20,52 @@ export const useNotifications = () => {
       const { data, error } = await supabase
         .from('notifications')
         .select(`
-          *,
-          users:staff_id(name, email),
+          id,
+          order_id,
+          staff_id,
+          admin_id,
+          rider_id,
+          notification_type,
+          status,
+          message,
+          created_at,
+          updated_at,
           orders(customer_name, total_amount)
         `)
         .or(`admin_id.eq.${user.id},staff_id.eq.${user.id},rider_id.eq.${user.id}`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Notification[];
+
+      // Get user details for each notification separately
+      const notificationsWithUsers = await Promise.all(
+        (data || []).map(async (notification) => {
+          let userData = null;
+          
+          // Determine which user to fetch based on the notification type
+          let userId = null;
+          if (notification.staff_id) userId = notification.staff_id;
+          else if (notification.rider_id) userId = notification.rider_id;
+          else if (notification.admin_id) userId = notification.admin_id;
+
+          if (userId) {
+            const { data: userResponse } = await supabase
+              .from('users')
+              .select('name, email')
+              .eq('id', userId)
+              .single();
+            
+            userData = userResponse;
+          }
+
+          return {
+            ...notification,
+            users: userData
+          } as Notification;
+        })
+      );
+
+      return notificationsWithUsers;
     },
     enabled: !!restaurant?.id && !!user?.id,
     refetchInterval: 5000 // Refresh every 5 seconds

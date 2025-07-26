@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   email: string;
@@ -91,11 +90,20 @@ export interface Analytics {
 export interface Notification {
   id: string;
   order_id: string;
-  staff_id: string;
-  admin_id: string;
+  staff_id: string | null;
+  admin_id: string | null;
+  rider_id: string | null;
   notification_type: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'dismissed';
   message: string;
   created_at: string;
   updated_at: string;
+  users?: {
+    name: string;
+    email: string;
+  };
+  orders?: {
+    customer_name: string;
+    total_amount: number;
+  };
 }
