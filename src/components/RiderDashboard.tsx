@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -41,8 +42,10 @@ export const RiderDashboard = () => {
 
   // Load rider online status
   useEffect(() => {
-    const savedStatus = localStorage.getItem(`rider_online_${user?.id}`);
-    setIsOnline(savedStatus === 'true');
+    if (user?.id) {
+      const savedStatus = localStorage.getItem(`rider_online_${user.id}`);
+      setIsOnline(savedStatus === 'true');
+    }
   }, [user?.id]);
 
   // Fetch orders assigned to this rider
@@ -150,7 +153,9 @@ export const RiderDashboard = () => {
   const toggleOnlineStatus = () => {
     const newStatus = !isOnline;
     setIsOnline(newStatus);
-    localStorage.setItem(`rider_online_${user?.id}`, newStatus.toString());
+    if (user?.id) {
+      localStorage.setItem(`rider_online_${user.id}`, newStatus.toString());
+    }
     
     toast({ 
       title: newStatus ? "You're now online" : "You're now offline",
@@ -477,7 +482,6 @@ export const RiderDashboard = () => {
         return (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">My Deliveries</h2>
-            {/* Deliveries content */}
             <div className="grid gap-4">
               {orders.map((order) => (
                 <Card key={order.id}>

@@ -147,7 +147,7 @@ const AppRoutes = () => {
         } 
       />
       
-      {/* Restaurant Staff Routes - Updated to match sidebar navigation */}
+      {/* Restaurant Staff Routes */}
       <Route 
         path="/restaurant" 
         element={
@@ -156,18 +156,10 @@ const AppRoutes = () => {
           </ProtectedRoute>
         } 
       />
-      <Route 
-        path="/staff-dashboard" 
-        element={
-          <ProtectedRoute allowedRoles={['restaurant_staff']}>
-            <RestaurantDashboard />
-          </ProtectedRoute>
-        } 
-      />
       
-      {/* Rider Routes */}
+      {/* Rider Routes - Fixed routing */}
       <Route 
-        path="/rider-dashboard" 
+        path="/rider" 
         element={
           <ProtectedRoute allowedRoles={['rider']}>
             <RiderDashboard />
@@ -183,7 +175,7 @@ const AppRoutes = () => {
             user.role === 'super_admin' ? <Navigate to="/admin/dashboard" replace /> :
             user.role === 'admin' ? <Navigate to="/restaurant-admin" replace /> :
             user.role === 'restaurant_staff' ? <Navigate to="/restaurant" replace /> :
-            user.role === 'rider' ? <Navigate to="/rider-dashboard" replace /> :
+            user.role === 'rider' ? <Navigate to="/rider" replace /> :
             <Navigate to="/login" replace />
           ) : (
             <Navigate to="/login" replace />
