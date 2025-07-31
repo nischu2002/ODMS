@@ -384,6 +384,36 @@ export type Database = {
         }
         Relationships: []
       }
+      rider_locations: {
+        Row: {
+          accuracy: number | null
+          created_at: string
+          id: string
+          latitude: number
+          longitude: number
+          rider_id: string
+          updated_at: string
+        }
+        Insert: {
+          accuracy?: number | null
+          created_at?: string
+          id?: string
+          latitude: number
+          longitude: number
+          rider_id: string
+          updated_at?: string
+        }
+        Update: {
+          accuracy?: number | null
+          created_at?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          rider_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       super_admins: {
         Row: {
           created_at: string
