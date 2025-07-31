@@ -35,7 +35,7 @@ export const OrderDeletionDialog = ({
   const handleSubmit = () => {
     if (!reason.trim()) return;
 
-    const message = `Order deletion request for ${orderDetails.customerName} (Nrs. ${orderDetails.totalAmount}). Reason: ${reason}`;
+    const message = `Order deletion request for ${orderDetails.customerName} (NPR ${orderDetails.totalAmount}). Reason: ${reason}`;
     
     createDeletionRequest.mutate(
       { orderId, message },
@@ -60,7 +60,7 @@ export const OrderDeletionDialog = ({
           <DialogTitle>Request Order Deletion</DialogTitle>
           <DialogDescription>
             You are requesting to delete the order for {orderDetails.customerName} 
-            (Nrs. {orderDetails.totalAmount}). This request will be sent to the restaurant admin for approval.
+            (NPR {orderDetails.totalAmount}). This request will be sent to the restaurant admin for approval.
           </DialogDescription>
         </DialogHeader>
         

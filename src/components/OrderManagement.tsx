@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -7,7 +8,7 @@ import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Trash2, Eye, User, Bike } from 'lucide-react';
+import { Trash2, Eye, User, Bike, Edit } from 'lucide-react';
 import { OrderDeletionDialog } from './OrderDeletionDialog';
 import { useNotifications } from '../hooks/useNotifications';
 
@@ -168,7 +169,7 @@ export const OrderManagement = () => {
       // Create notification for the rider
       const order = orders.find(o => o.id === orderId);
       if (order && data.assigned_rider) {
-        const message = `New delivery assignment: Order from ${order.customer_name} (Nrs. ${order.total_amount})`;
+        const message = `New delivery assignment: Order from ${order.customer_name} (NPR ${order.total_amount})`;
         await createRiderAssignmentNotification.mutateAsync({
           orderId,
           riderId,
@@ -270,7 +271,7 @@ export const OrderManagement = () => {
                       <h3 className="font-semibold">{order.customer_name}</h3>
                       <p className="text-sm text-gray-600">{order.customer_phone}</p>
                       <p className="text-sm text-gray-600">{order.customer_address}</p>
-                      <p className="text-lg font-bold text-green-600">Nrs. {order.total_amount}</p>
+                      <p className="text-lg font-bold text-green-600">NPR {order.total_amount}</p>
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -289,14 +290,27 @@ export const OrderManagement = () => {
                           <Eye className="h-4 w-4" />
                         </Button>
                         
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDeleteClick(order)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {/* Staff can now edit/delete orders */}
+                        {(user?.role === 'admin' || user?.role === 'restaurant_staff') && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDeleteClick(order)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -307,6 +321,7 @@ export const OrderManagement = () => {
                       <Select 
                         value={order.status} 
                         onValueChange={(value) => handleStatusChange(order.id, value)}
+                        disabled={user?.role === 'restaurant_staff' && !['pending', 'confirmed', 'preparing', 'ready'].includes(order.status)}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -316,14 +331,19 @@ export const OrderManagement = () => {
                           <SelectItem value="confirmed">Confirmed</SelectItem>
                           <SelectItem value="preparing">Preparing</SelectItem>
                           <SelectItem value="ready">Ready</SelectItem>
-                          <SelectItem value="assigned">Assigned</SelectItem>
-                          <SelectItem value="picked_up">Picked Up</SelectItem>
-                          <SelectItem value="delivered">Delivered</SelectItem>
-                          <SelectItem value="cancelled">Cancelled</SelectItem>
+                          {(user?.role === 'admin') && (
+                            <>
+                              <SelectItem value="assigned">Assigned</SelectItem>
+                              <SelectItem value="picked_up">Picked Up</SelectItem>
+                              <SelectItem value="delivered">Delivered</SelectItem>
+                              <SelectItem value="cancelled">Cancelled</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
 
+                    {/* Staff assignment - available for both admin and staff */}
                     <div>
                       <label className="text-sm font-medium flex items-center gap-1">
                         <User className="h-4 w-4" />
@@ -352,33 +372,36 @@ export const OrderManagement = () => {
                       )}
                     </div>
 
-                    <div>
-                      <label className="text-sm font-medium flex items-center gap-1">
-                        <Bike className="h-4 w-4" />
-                        Delivery Rider
-                      </label>
-                      <Select 
-                        value={order.assigned_rider_id || ''} 
-                        onValueChange={(value) => handleRiderAssignment(order.id, value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Assign rider" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unassign">Unassign</SelectItem>
-                          {riders.map(rider => (
-                            <SelectItem key={rider.id} value={rider.id}>
-                              {rider.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {order.assigned_rider && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Assigned: {order.assigned_rider.name}
-                        </p>
-                      )}
-                    </div>
+                    {/* Rider assignment - only for admin */}
+                    {user?.role === 'admin' && (
+                      <div>
+                        <label className="text-sm font-medium flex items-center gap-1">
+                          <Bike className="h-4 w-4" />
+                          Delivery Rider
+                        </label>
+                        <Select 
+                          value={order.assigned_rider_id || ''} 
+                          onValueChange={(value) => handleRiderAssignment(order.id, value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Assign rider" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassign">Unassign</SelectItem>
+                            {riders.map(rider => (
+                              <SelectItem key={rider.id} value={rider.id}>
+                                {rider.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {order.assigned_rider && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Assigned: {order.assigned_rider.name}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {selectedOrderId === order.id && (
@@ -388,7 +411,7 @@ export const OrderManagement = () => {
                         {order.order_items?.map((item: any) => (
                           <div key={item.id} className="flex justify-between items-center bg-gray-50 p-2 rounded">
                             <span>{item.name} x {item.quantity}</span>
-                            <span className="font-medium">Nrs. {item.price * item.quantity}</span>
+                            <span className="font-medium">NPR {item.price * item.quantity}</span>
                           </div>
                         ))}
                       </div>

@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
-import { MapPin, Truck, Clock, CheckCircle, Navigation, Phone, User, LayoutDashboard } from 'lucide-react';
+import { MapPin, Truck, Clock, CheckCircle, Navigation, Phone, User, LayoutDashboard, Package, Bell } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,6 +10,8 @@ import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { RiderLocationManager } from './RiderLocationManager';
+import { NotificationCenter } from './NotificationCenter';
+import { useLocation } from 'react-router-dom';
 
 interface Order {
   id: string;
@@ -32,7 +33,8 @@ interface Order {
 
 export const RiderDashboard = () => {
   const [isOnline, setIsOnline] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const location = useLocation();
+  const activeTab = new URLSearchParams(location.search).get('tab') || 'dashboard';
   const { restaurant, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -63,7 +65,7 @@ export const RiderDashboard = () => {
       return data as Order[];
     },
     enabled: !!restaurant?.id && !!user?.id,
-    refetchInterval: 10000 // Refresh every 10 seconds
+    refetchInterval: 10000
   });
 
   // Fetch available orders (ready for pickup)
@@ -87,7 +89,7 @@ export const RiderDashboard = () => {
       return data as Order[];
     },
     enabled: !!restaurant?.id && isOnline,
-    refetchInterval: 5000 // Refresh every 5 seconds when online
+    refetchInterval: 5000
   });
 
   // Update order status mutation
@@ -100,14 +102,6 @@ export const RiderDashboard = () => {
 
       if (error) throw error;
 
-      // Log status change
-      await supabase.from('order_status_history').insert({
-        order_id: orderId,
-        new_status: newStatus,
-        changed_by: user?.id
-      });
-
-      // Log analytics event if order is delivered
       if (newStatus === 'delivered') {
         const order = orders.find(o => o.id === orderId);
         if (order) {
@@ -141,13 +135,6 @@ export const RiderDashboard = () => {
         .eq('id', orderId);
 
       if (error) throw error;
-
-      // Log status change
-      await supabase.from('order_status_history').insert({
-        order_id: orderId,
-        new_status: 'assigned',
-        changed_by: user?.id
-      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rider-orders', restaurant?.id, user?.id] });
@@ -172,7 +159,6 @@ export const RiderDashboard = () => {
   };
 
   const startNavigation = (address: string) => {
-    // Open Google Maps with the address
     const encodedAddress = encodeURIComponent(address);
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
     window.open(mapsUrl, '_blank');
@@ -305,7 +291,7 @@ export const RiderDashboard = () => {
                         <h3 className="font-medium">{order.customer_name}</h3>
                         <p className="text-sm text-gray-600">{order.customer_phone}</p>
                         <p className="text-sm text-gray-600">{order.customer_address}</p>
-                        <p className="text-sm font-medium">${order.total_amount} • {order.order_items?.length || 0} items</p>
+                        <p className="text-sm font-medium">NPR {order.total_amount} • {order.order_items?.length || 0} items</p>
                       </div>
                     </div>
                   </div>
@@ -342,7 +328,7 @@ export const RiderDashboard = () => {
                   <div className="flex-1">
                     <h3 className="font-medium">{order.customer_name}</h3>
                     <p className="text-sm text-gray-600">{order.customer_address}</p>
-                    <p className="text-sm font-medium">${order.total_amount} • {order.order_items?.length || 0} items</p>
+                    <p className="text-sm font-medium">NPR {order.total_amount} • {order.order_items?.length || 0} items</p>
                     <div className="flex items-center gap-2 mt-2">
                       <Badge className={getStatusColor(order.status)}>
                         {order.status}
@@ -398,7 +384,7 @@ export const RiderDashboard = () => {
                   <div className="flex-1">
                     <h3 className="font-medium">{order.customer_name}</h3>
                     <p className="text-sm text-gray-600">{order.customer_address}</p>
-                    <p className="text-sm font-medium">${order.total_amount} • {order.order_items?.length || 0} items</p>
+                    <p className="text-sm font-medium">NPR {order.total_amount} • {order.order_items?.length || 0} items</p>
                     <div className="flex items-center gap-2 mt-2">
                       <Badge className={getStatusColor(order.status)}>
                         {order.status}
@@ -454,7 +440,7 @@ export const RiderDashboard = () => {
                 <div className="flex-1">
                   <h3 className="font-medium">{order.customer_name}</h3>
                   <p className="text-sm text-gray-600">{order.customer_address}</p>
-                  <p className="text-sm text-gray-600">${order.total_amount} • Delivered {new Date(order.created_at).toLocaleDateString()}</p>
+                  <p className="text-sm text-gray-600">NPR {order.total_amount} • Delivered {new Date(order.created_at).toLocaleDateString()}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-green-600" />
@@ -487,8 +473,82 @@ export const RiderDashboard = () => {
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'deliveries':
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">My Deliveries</h2>
+            {/* Deliveries content */}
+            <div className="grid gap-4">
+              {orders.map((order) => (
+                <Card key={order.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">{order.customer_name}</h3>
+                        <p className="text-sm text-gray-600">{order.customer_address}</p>
+                        <p className="text-sm font-medium">NPR {order.total_amount}</p>
+                      </div>
+                      <Badge className={getStatusColor(order.status)}>
+                        {order.status}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        );
       case 'location':
         return <RiderLocationManager />;
+      case 'history':
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">Delivery History</h2>
+            <div className="grid gap-4">
+              {deliveredOrders.map((order) => (
+                <Card key={order.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">{order.customer_name}</h3>
+                        <p className="text-sm text-gray-600">{order.customer_address}</p>
+                        <p className="text-sm font-medium">NPR {order.total_amount}</p>
+                        <p className="text-sm text-gray-500">Delivered on {new Date(order.created_at).toLocaleDateString()}</p>
+                      </div>
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        );
+      case 'notifications':
+        return <NotificationCenter />;
+      case 'profile':
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle>Rider Profile</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Name</label>
+                  <p className="text-sm text-gray-600">{user?.name}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Email</label>
+                  <p className="text-sm text-gray-600">{user?.email}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Phone</label>
+                  <p className="text-sm text-gray-600">{user?.phone}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
       default:
         return renderDashboardContent();
     }
@@ -496,22 +556,7 @@ export const RiderDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="dashboard" className="flex items-center gap-2">
-            <LayoutDashboard className="h-4 w-4" />
-            Dashboard
-          </TabsTrigger>
-          <TabsTrigger value="location" className="flex items-center gap-2">
-            <MapPin className="h-4 w-4" />
-            Location
-          </TabsTrigger>
-        </TabsList>
-
-        <div className="mt-6">
-          {renderTabContent()}
-        </div>
-      </Tabs>
+      {renderTabContent()}
     </div>
   );
 };
