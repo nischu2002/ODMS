@@ -1,15 +1,15 @@
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from './use-toast';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Notification } from '../types';
 
 export const useNotifications = () => {
   const { user, restaurant } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const channelRef = useRef<any>(null);
 
   // Fetch notifications
   const { data: notifications = [], isLoading } = useQuery({
@@ -75,15 +75,23 @@ export const useNotifications = () => {
       return notificationsWithUsers;
     },
     enabled: !!restaurant?.id && !!user?.id,
-    refetchInterval: 5000 // Refresh every 5 seconds
+    refetchInterval: 10000 // Increased to 10 seconds to reduce load
   });
 
-  // Set up real-time subscription
+  // Set up real-time subscription with proper cleanup
   useEffect(() => {
     if (!restaurant?.id || !user?.id) return;
 
+    // Clean up existing channel first
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    // Create new channel with unique name
+    const channelName = `notifications-${user.id}-${Date.now()}`;
     const channel = supabase
-      .channel('notifications-changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -109,8 +117,13 @@ export const useNotifications = () => {
       )
       .subscribe();
 
+    channelRef.current = channel;
+
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [restaurant?.id, user?.id, queryClient, toast]);
 

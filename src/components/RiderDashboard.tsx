@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
@@ -39,6 +38,8 @@ export const RiderDashboard = () => {
   const { restaurant, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const ordersChannelRef = useRef<any>(null);
+  const availableOrdersChannelRef = useRef<any>(null);
 
   // Load rider online status
   useEffect(() => {
@@ -68,7 +69,7 @@ export const RiderDashboard = () => {
       return data as Order[];
     },
     enabled: !!restaurant?.id && !!user?.id,
-    refetchInterval: 10000
+    refetchInterval: 15000 // Reduced frequency to prevent overloading
   });
 
   // Fetch available orders (ready for pickup)
@@ -92,8 +93,68 @@ export const RiderDashboard = () => {
       return data as Order[];
     },
     enabled: !!restaurant?.id && isOnline,
-    refetchInterval: 5000
+    refetchInterval: 10000 // Reduced frequency
   });
+
+  // Set up real-time subscriptions with proper cleanup
+  useEffect(() => {
+    if (!restaurant?.id || !user?.id) return;
+
+    // Clean up existing channels
+    if (ordersChannelRef.current) {
+      supabase.removeChannel(ordersChannelRef.current);
+      ordersChannelRef.current = null;
+    }
+    if (availableOrdersChannelRef.current) {
+      supabase.removeChannel(availableOrdersChannelRef.current);
+      availableOrdersChannelRef.current = null;
+    }
+
+    // Set up orders subscription with unique channel name
+    const ordersChannelName = `rider-orders-${user.id}-${Date.now()}`;
+    const ordersChannel = supabase
+      .channel(ordersChannelName)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        filter: `assigned_rider_id=eq.${user.id}`
+      }, () => {
+        queryClient.invalidateQueries({ queryKey: ['rider-orders', restaurant.id, user.id] });
+      })
+      .subscribe();
+
+    ordersChannelRef.current = ordersChannel;
+
+    // Set up available orders subscription if online
+    if (isOnline) {
+      const availableOrdersChannelName = `available-orders-${user.id}-${Date.now()}`;
+      const availableOrdersChannel = supabase
+        .channel(availableOrdersChannelName)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `restaurant_id=eq.${restaurant.id}`
+        }, () => {
+          queryClient.invalidateQueries({ queryKey: ['available-orders', restaurant.id] });
+        })
+        .subscribe();
+
+      availableOrdersChannelRef.current = availableOrdersChannel;
+    }
+
+    return () => {
+      if (ordersChannelRef.current) {
+        supabase.removeChannel(ordersChannelRef.current);
+        ordersChannelRef.current = null;
+      }
+      if (availableOrdersChannelRef.current) {
+        supabase.removeChannel(availableOrdersChannelRef.current);
+        availableOrdersChannelRef.current = null;
+      }
+    };
+  }, [restaurant?.id, user?.id, isOnline, queryClient]);
 
   // Update order status mutation
   const updateOrderMutation = useMutation({

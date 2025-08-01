@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { MapPin, RefreshCw, Clock, User } from 'lucide-react';
@@ -20,6 +20,7 @@ export const RiderLocationViewer = () => {
   const [riderLocations, setRiderLocations] = useState<RiderLocation[]>([]);
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
+  const channelRef = useRef<any>(null);
 
   const fetchRiderLocations = async () => {
     setLoading(true);
@@ -65,9 +66,16 @@ export const RiderLocationViewer = () => {
   useEffect(() => {
     fetchRiderLocations();
     
-    // Set up real-time updates
+    // Clean up existing channel first
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    // Set up real-time updates with unique channel name
+    const channelName = `rider-locations-${user?.id || 'guest'}-${Date.now()}`;
     const channel = supabase
-      .channel('rider-locations')
+      .channel(channelName)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -77,10 +85,15 @@ export const RiderLocationViewer = () => {
       })
       .subscribe();
 
+    channelRef.current = channel;
+
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
-  }, []);
+  }, [user?.id]);
 
   const openInMaps = (lat: number, lng: number, riderName: string) => {
     const url = `https://www.google.com/maps?q=${lat},${lng}&label=${encodeURIComponent(riderName)}`;
