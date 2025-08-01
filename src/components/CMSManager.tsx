@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -20,7 +21,17 @@ import {
 } from 'lucide-react';
 
 interface CMSContent {
-  id: string;
+  id?: string;
+  section: string;
+  title: string;
+  content: string;
+  image_url?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface CMSUpdateData {
   section: string;
   title: string;
   content: string;
@@ -59,7 +70,7 @@ export const CMSManager = () => {
 
   // Update CMS content mutation
   const updateContentMutation = useMutation({
-    mutationFn: async (content: Partial<CMSContent>) => {
+    mutationFn: async (content: CMSUpdateData) => {
       const { error } = await supabase
         .from('cms_content')
         .upsert(content);
@@ -76,10 +87,12 @@ export const CMSManager = () => {
     }
   });
 
-  const handleSaveContent = (section: string, data: any) => {
+  const handleSaveContent = (section: string, title: string, content: string, imageUrl?: string) => {
     updateContentMutation.mutate({
       section,
-      ...data,
+      title,
+      content,
+      image_url: imageUrl,
       is_active: true
     });
   };
@@ -112,7 +125,7 @@ export const CMSManager = () => {
               <Label htmlFor="hero-cta">Call to Action Text</Label>
               <Input id="hero-cta" placeholder="Get Started" />
             </div>
-            <Button onClick={() => handleSaveContent('hero', {})}>
+            <Button onClick={() => handleSaveContent('hero', 'Hero Section', 'Hero content')}>
               <Save className="h-4 w-4 mr-2" />
               Save Hero Section
             </Button>
@@ -136,7 +149,7 @@ export const CMSManager = () => {
               <Label htmlFor="features-description">Description</Label>
               <Textarea id="features-description" placeholder="Section description" />
             </div>
-            <Button onClick={() => handleSaveContent('features', {})}>
+            <Button onClick={() => handleSaveContent('features', 'Features Section', 'Features content')}>
               <Save className="h-4 w-4 mr-2" />
               Save Features
             </Button>
@@ -160,7 +173,7 @@ export const CMSManager = () => {
               <Label htmlFor="about-content">About Content</Label>
               <Textarea id="about-content" placeholder="About us content" rows={4} />
             </div>
-            <Button onClick={() => handleSaveContent('about', {})}>
+            <Button onClick={() => handleSaveContent('about', 'About Section', 'About content')}>
               <Save className="h-4 w-4 mr-2" />
               Save About
             </Button>
@@ -188,7 +201,7 @@ export const CMSManager = () => {
               <Label htmlFor="contact-address">Address</Label>
               <Textarea id="contact-address" placeholder="Company address" />
             </div>
-            <Button onClick={() => handleSaveContent('contact', {})}>
+            <Button onClick={() => handleSaveContent('contact', 'Contact Section', 'Contact content')}>
               <Save className="h-4 w-4 mr-2" />
               Save Contact
             </Button>
