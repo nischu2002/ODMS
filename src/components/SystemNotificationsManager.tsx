@@ -27,14 +27,12 @@ import {
 
 interface SystemNotification {
   id: string;
-  type: 'error' | 'warning' | 'info' | 'success';
+  notification_type: 'error' | 'warning' | 'info' | 'success';
   title: string;
   message: string;
-  source: string;
   is_read: boolean;
   severity: 'low' | 'medium' | 'high' | 'critical';
   created_at: string;
-  metadata?: any;
 }
 
 export const SystemNotificationsManager = () => {
@@ -48,7 +46,7 @@ export const SystemNotificationsManager = () => {
     queryFn: async () => {
       try {
         const { data, error } = await supabase
-          .from('system_notifications')
+          .from('system_notifications' as any)
           .select('*')
           .order('created_at', { ascending: false })
           .limit(100);
@@ -61,30 +59,27 @@ export const SystemNotificationsManager = () => {
         return [
           {
             id: '1',
-            type: 'error' as const,
+            notification_type: 'error' as const,
             title: 'Database Connection Issue',
             message: 'Temporary connection timeout to primary database',
-            source: 'Database Monitor',
             is_read: false,
             severity: 'high' as const,
             created_at: new Date(Date.now() - 3600000).toISOString(),
           },
           {
             id: '2',
-            type: 'warning' as const,
+            notification_type: 'warning' as const,
             title: 'High Memory Usage',
             message: 'Server memory usage at 85%',
-            source: 'System Monitor',
             is_read: false,
             severity: 'medium' as const,
             created_at: new Date(Date.now() - 7200000).toISOString(),
           },
           {
             id: '3',
-            type: 'info' as const,
+            notification_type: 'info' as const,
             title: 'Scheduled Maintenance',
             message: 'Database maintenance completed successfully',
-            source: 'Maintenance System',
             is_read: true,
             severity: 'low' as const,
             created_at: new Date(Date.now() - 86400000).toISOString(),
@@ -98,7 +93,7 @@ export const SystemNotificationsManager = () => {
   const markAsReadMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('system_notifications')
+        .from('system_notifications' as any)
         .update({ is_read: true })
         .eq('id', id);
 
@@ -113,7 +108,7 @@ export const SystemNotificationsManager = () => {
   const deleteNotificationMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('system_notifications')
+        .from('system_notifications' as any)
         .delete()
         .eq('id', id);
 
@@ -254,7 +249,6 @@ export const SystemNotificationsManager = () => {
               <TableRow>
                 <TableHead>Type</TableHead>
                 <TableHead>Alert</TableHead>
-                <TableHead>Source</TableHead>
                 <TableHead>Severity</TableHead>
                 <TableHead>Time</TableHead>
                 <TableHead>Actions</TableHead>
@@ -268,8 +262,8 @@ export const SystemNotificationsManager = () => {
                 >
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {getTypeIcon(notification.type)}
-                      <span className="capitalize">{notification.type}</span>
+                      {getTypeIcon(notification.notification_type)}
+                      <span className="capitalize">{notification.notification_type}</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -277,9 +271,6 @@ export const SystemNotificationsManager = () => {
                       <div className="font-medium">{notification.title}</div>
                       <div className="text-sm text-gray-500">{notification.message}</div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm">{notification.source}</span>
                   </TableCell>
                   <TableCell>
                     <Badge className={getSeverityColor(notification.severity)}>

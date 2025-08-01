@@ -41,7 +41,7 @@ export const CMSManager = () => {
     queryFn: async () => {
       try {
         const { data, error } = await supabase
-          .from('cms_content')
+          .from('cms_content' as any)
           .select('*')
           .order('section', { ascending: true });
 
@@ -58,7 +58,7 @@ export const CMSManager = () => {
   const updateContentMutation = useMutation({
     mutationFn: async (content: Partial<CMSContent>) => {
       const { error } = await supabase
-        .from('cms_content')
+        .from('cms_content' as any)
         .upsert(content);
 
       if (error) throw error;

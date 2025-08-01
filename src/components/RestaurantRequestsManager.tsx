@@ -59,7 +59,7 @@ export const RestaurantRequestsManager = () => {
     queryFn: async () => {
       try {
         const { data, error } = await supabase
-          .from('restaurant_requests')
+          .from('restaurant_requests' as any)
           .select('*')
           .order('created_at', { ascending: false });
 
@@ -76,7 +76,7 @@ export const RestaurantRequestsManager = () => {
   const updateRequestMutation = useMutation({
     mutationFn: async ({ id, status, notes }: { id: string; status: 'approved' | 'rejected'; notes?: string }) => {
       const { error } = await supabase
-        .from('restaurant_requests')
+        .from('restaurant_requests' as any)
         .update({ status, notes, updated_at: new Date().toISOString() })
         .eq('id', id);
 

@@ -59,6 +59,39 @@ export type Database = {
           },
         ]
       }
+      cms_content: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          section: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          section: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          section?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       menu_items: {
         Row: {
           allergens: string[] | null
@@ -342,6 +375,51 @@ export type Database = {
           },
         ]
       }
+      restaurant_requests: {
+        Row: {
+          address: string
+          business_type: string
+          created_at: string
+          domain: string
+          email: string
+          id: string
+          notes: string | null
+          owner_name: string
+          phone: string
+          restaurant_name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          business_type: string
+          created_at?: string
+          domain: string
+          email: string
+          id?: string
+          notes?: string | null
+          owner_name: string
+          phone: string
+          restaurant_name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          business_type?: string
+          created_at?: string
+          domain?: string
+          email?: string
+          id?: string
+          notes?: string | null
+          owner_name?: string
+          phone?: string
+          restaurant_name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       restaurants: {
         Row: {
           address: string
@@ -432,6 +510,39 @@ export type Database = {
           email?: string
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      system_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          notification_type: string
+          severity: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          notification_type: string
+          severity?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          notification_type?: string
+          severity?: string
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
