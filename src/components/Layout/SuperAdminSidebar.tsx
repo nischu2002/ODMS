@@ -7,15 +7,22 @@ import {
   Users, 
   BarChart3, 
   Settings,
-  Shield
+  Shield,
+  Globe,
+  Bell,
+  UserPlus,
+  FileText
 } from 'lucide-react';
 
 const navigation = [
-  { name: 'Dashboard', href: '/super-admin', icon: LayoutDashboard },
-  { name: 'Restaurants', href: '/super-admin/restaurants', icon: Store },
-  { name: 'Restaurant Admins', href: '/super-admin/admins', icon: Users },
-  { name: 'System Analytics', href: '/super-admin/analytics', icon: BarChart3 },
-  { name: 'System Settings', href: '/super-admin/settings', icon: Settings },
+  { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+  { name: 'Restaurants', href: '/admin/dashboard?tab=restaurants', icon: Store },
+  { name: 'Restaurant Admins', href: '/admin/dashboard?tab=admins', icon: Users },
+  { name: 'Restaurant Requests', href: '/admin/dashboard?tab=requests', icon: UserPlus },
+  { name: 'System Analytics', href: '/admin/dashboard?tab=analytics', icon: BarChart3 },
+  { name: 'CMS Management', href: '/admin/dashboard?tab=cms', icon: Globe },
+  { name: 'System Notifications', href: '/admin/dashboard?tab=notifications', icon: Bell },
+  { name: 'System Settings', href: '/admin/dashboard?tab=settings', icon: Settings },
 ];
 
 export const SuperAdminSidebar = () => {

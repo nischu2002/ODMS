@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '../components/Layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -18,7 +19,8 @@ import {
   Trash2,
   Eye,
   Activity,
-  UserCog
+  UserCog,
+  RefreshCw
 } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
@@ -34,6 +36,9 @@ import {
 import { Badge } from '../components/ui/badge';
 import { Switch } from '../components/ui/switch';
 import { TeamMemberCMS } from '../components/TeamMemberCMS';
+import { CMSManager } from '../components/CMSManager';
+import { RestaurantRequestsManager } from '../components/RestaurantRequestsManager';
+import { SystemNotificationsManager } from '../components/SystemNotificationsManager';
 
 interface Restaurant {
   id: string;
@@ -58,7 +63,8 @@ interface User {
 }
 
 export default function SuperAdminDashboard() {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [searchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
   const [searchTerm, setSearchTerm] = useState('');
   const [showTeamCMS, setShowTeamCMS] = useState(false);
   const { toast } = useToast();
@@ -487,72 +493,141 @@ export default function SuperAdminDashboard() {
     );
   };
 
-  const renderTeams = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Team Management</h2>
-        <Button onClick={() => setShowTeamCMS(true)} className="flex items-center gap-2">
-          <UserCog className="h-4 w-4" />
-          Manage Team Members
-        </Button>
-      </div>
+  const renderCMS = () => <CMSManager />;
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Team CMS</CardTitle>
-          <CardDescription>Manage team member profiles displayed on the public website</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <UserCog className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600 text-lg mb-4">Click "Manage Team Members" to access the full CMS</p>
-            <Button onClick={() => setShowTeamCMS(true)} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-              <UserCog className="h-4 w-4 mr-2" />
-              Open Team CMS
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  const renderRequests = () => <RestaurantRequestsManager />;
+
+  const renderNotifications = () => <SystemNotificationsManager />;
 
   const renderSettings = () => (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">System Settings</h2>
       
-      <Card>
-        <CardHeader>
-          <CardTitle>System Configuration</CardTitle>
-          <CardDescription>Global system settings and configurations</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="max_restaurants">Max Restaurants</Label>
-                <Input id="max_restaurants" type="number" defaultValue="1000" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>System Configuration</CardTitle>
+            <CardDescription>Global system settings and configurations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="max_restaurants">Max Restaurants</Label>
+                  <Input id="max_restaurants" type="number" defaultValue="1000" />
+                </div>
+                <div>
+                  <Label htmlFor="max_users_per_restaurant">Max Users per Restaurant</Label>
+                  <Input id="max_users_per_restaurant" type="number" defaultValue="50" />
+                </div>
               </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="default_trial_period">Default Trial Period (days)</Label>
+                  <Input id="default_trial_period" type="number" defaultValue="30" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="system_maintenance">System Maintenance Mode</Label>
+                  <Switch id="system_maintenance" />
+                </div>
+              </div>
+              
+              <Button>Save Settings</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Security Settings</CardTitle>
+            <CardDescription>Authentication and security configurations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Two-Factor Authentication</Label>
+                  <p className="text-sm text-gray-600">Require 2FA for super admins</p>
+                </div>
+                <Switch />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Session Timeout</Label>
+                  <p className="text-sm text-gray-600">Auto logout after inactivity</p>
+                </div>
+                <Switch />
+              </div>
+              
               <div>
-                <Label htmlFor="max_users_per_restaurant">Max Users per Restaurant</Label>
-                <Input id="max_users_per_restaurant" type="number" defaultValue="50" />
+                <Label htmlFor="password_policy">Password Policy</Label>
+                <Input id="password_policy" placeholder="Minimum 8 characters, 1 uppercase, 1 number" />
               </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="default_trial_period">Default Trial Period (days)</Label>
-                <Input id="default_trial_period" type="number" defaultValue="30" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Notification Settings</CardTitle>
+            <CardDescription>Configure system alerts and notifications</CardHeader>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Error Alerts</Label>
+                  <p className="text-sm text-gray-600">Email notifications for system errors</p>
+                </div>
+                <Switch defaultChecked />
               </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Performance Monitoring</Label>
+                  <p className="text-sm text-gray-600">Alerts for performance issues</p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+              
               <div>
-                <Label htmlFor="system_maintenance">System Maintenance Mode</Label>
-                <Switch id="system_maintenance" />
+                <Label htmlFor="alert_email">Alert Email</Label>
+                <Input id="alert_email" type="email" placeholder="admin@odms.com" />
               </div>
             </div>
-            
-            <Button>Save Settings</Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Backup & Recovery</CardTitle>
+            <CardDescription>Data backup and system recovery settings</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Automatic Backups</Label>
+                  <p className="text-sm text-gray-600">Daily automated backups</p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+              
+              <div>
+                <Label htmlFor="backup_retention">Backup Retention (days)</Label>
+                <Input id="backup_retention" type="number" defaultValue="30" />
+              </div>
+              
+              <Button variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Run Backup Now
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 
@@ -560,38 +635,50 @@ export default function SuperAdminDashboard() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">System Analytics & Performance</h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* System Health Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Error Tracking</CardTitle>
+            <CardTitle>System Uptime</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">0</div>
-            <p className="text-sm text-gray-500">Critical errors (24h)</p>
+            <div className="text-2xl font-bold text-green-600">99.9%</div>
+            <p className="text-sm text-gray-500">Last 30 days</p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader>
-            <CardTitle>System Load</CardTitle>
+            <CardTitle>Response Time</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">Normal</div>
-            <p className="text-sm text-gray-500">Server performance</p>
+            <div className="text-2xl font-bold text-blue-600">120ms</div>
+            <p className="text-sm text-gray-500">Average API response</p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader>
-            <CardTitle>Database Health</CardTitle>
+            <CardTitle>Error Rate</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">Optimal</div>
-            <p className="text-sm text-gray-500">Query response time</p>
+            <div className="text-2xl font-bold text-green-600">0.01%</div>
+            <p className="text-sm text-gray-500">24h error rate</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Active Sessions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">{analyticsData?.activeUsers || 0}</div>
+            <p className="text-sm text-gray-500">Current active users</p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Performance Metrics */}
       <Card>
         <CardHeader>
           <CardTitle>Platform Usage Statistics</CardTitle>
@@ -612,12 +699,78 @@ export default function SuperAdminDashboard() {
               <div className="text-sm text-gray-500">Active Users</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold">99.9%</div>
-              <div className="text-sm text-gray-500">Uptime</div>
+              <div className="text-2xl font-bold">${analyticsData?.totalRevenue?.toFixed(0) || '0'}</div>
+              <div className="text-sm text-gray-500">Total Revenue</div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Resource Usage */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Resource Usage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-sm">
+                  <span>CPU Usage</span>
+                  <span>45%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: '45%' }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm">
+                  <span>Memory Usage</span>
+                  <span>67%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="bg-green-600 h-2 rounded-full" style={{ width: '67%' }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm">
+                  <span>Storage Usage</span>
+                  <span>23%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="bg-purple-600 h-2 rounded-full" style={{ width: '23%' }}></div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Database Performance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between">
+                <span className="text-sm">Query Response Time</span>
+                <Badge className="bg-green-100 text-green-800">Fast</Badge>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm">Active Connections</span>
+                <span className="text-sm font-medium">24</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm">Database Size</span>
+                <span className="text-sm font-medium">2.3 GB</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm">Last Backup</span>
+                <span className="text-sm font-medium">2 hours ago</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 
@@ -625,40 +778,25 @@ export default function SuperAdminDashboard() {
     return <TeamMemberCMS onClose={() => setShowTeamCMS(false)} />;
   }
 
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'overview': return renderOverview();
+      case 'restaurants': return renderRestaurants();
+      case 'admins': return renderUsers();
+      case 'requests': return renderRequests();
+      case 'analytics': return renderSystemAnalytics();
+      case 'cms': return renderCMS();
+      case 'notifications': return renderNotifications();
+      case 'settings': return renderSettings();
+      default: return renderOverview();
+    }
+  };
+
   return (
     <DashboardLayout>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            System Health
-          </TabsTrigger>
-          <TabsTrigger value="restaurants" className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            Restaurants
-          </TabsTrigger>
-          <TabsTrigger value="users" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Admins
-          </TabsTrigger>
-          <TabsTrigger value="teams" className="flex items-center gap-2">
-            <UserCog className="h-4 w-4" />
-            Teams
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
-        </TabsList>
-
-        <div className="mt-6">
-          <TabsContent value="overview">{renderOverview()}</TabsContent>
-          <TabsContent value="restaurants">{renderRestaurants()}</TabsContent>
-          <TabsContent value="users">{renderUsers()}</TabsContent>
-          <TabsContent value="teams">{renderTeams()}</TabsContent>
-          <TabsContent value="analytics">{renderSystemAnalytics()}</TabsContent>
-        </div>
-      </Tabs>
+      <div className="w-full">
+        {renderContent()}
+      </div>
     </DashboardLayout>
   );
 }
