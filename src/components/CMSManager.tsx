@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -46,10 +45,10 @@ export const CMSManager = () => {
           .order('section', { ascending: true });
 
         if (error) throw error;
-        return data as CMSContent[];
+        return (data || []) as CMSContent[];
       } catch (error) {
         console.error('Error fetching CMS content:', error);
-        return [];
+        return [] as CMSContent[];
       }
     }
   });

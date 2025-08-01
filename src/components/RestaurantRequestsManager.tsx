@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -64,10 +63,10 @@ export const RestaurantRequestsManager = () => {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return data as RestaurantRequest[];
+        return (data || []) as RestaurantRequest[];
       } catch (error) {
         console.error('Error fetching restaurant requests:', error);
-        return [];
+        return [] as RestaurantRequest[];
       }
     }
   });

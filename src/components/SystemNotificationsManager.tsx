@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -52,7 +51,7 @@ export const SystemNotificationsManager = () => {
           .limit(100);
 
         if (error) throw error;
-        return data as SystemNotification[];
+        return (data || []) as SystemNotification[];
       } catch (error) {
         console.error('Error fetching system notifications:', error);
         // Return mock data for now
