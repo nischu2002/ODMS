@@ -401,95 +401,95 @@ export default function SuperAdminDashboard() {
     const adminUsers = filteredUsers.filter(user => user.role === 'admin');
     
     return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Restaurant Admin Management</h2>
-        <div className="flex gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-80"
-            />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Restaurant Admin Management</h2>
+          <div className="flex gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search users..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-80"
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Restaurant Admins ({adminUsers.length})</CardTitle>
-          <CardDescription>Manage restaurant administrator accounts</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Restaurant</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {adminUsers.map((user) => {
-                const userRestaurant = restaurants.find(r => r.id === user.restaurant_id);
-                return (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{user.name}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {user.role.replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {userRestaurant ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Restaurant Admins ({adminUsers.length})</CardTitle>
+            <CardDescription>Manage restaurant administrator accounts</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Restaurant</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {adminUsers.map((user) => {
+                  const userRestaurant = restaurants.find(r => r.id === user.restaurant_id);
+                  return (
+                    <TableRow key={user.id}>
+                      <TableCell>
                         <div>
-                          <div className="text-sm">{userRestaurant.name}</div>
-                          <div className="text-xs text-gray-500">{userRestaurant.domain}</div>
+                          <div className="font-medium">{user.name}</div>
+                          <div className="text-sm text-gray-500">{user.email}</div>
                         </div>
-                      ) : (
-                        <span className="text-gray-400">N/A</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={user.is_active}
-                        onCheckedChange={() => toggleUserMutation.mutate({ 
-                          id: user.id, 
-                          is_active: user.is_active 
-                        })}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {new Date(user.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {user.role.replace('_', ' ')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {userRestaurant ? (
+                          <div>
+                            <div className="text-sm">{userRestaurant.name}</div>
+                            <div className="text-xs text-gray-500">{userRestaurant.domain}</div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">N/A</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={user.is_active}
+                          onCheckedChange={() => toggleUserMutation.mutate({ 
+                            id: user.id, 
+                            is_active: user.is_active 
+                          })}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {new Date(user.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     );
   };
 
@@ -572,7 +572,7 @@ export default function SuperAdminDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Notification Settings</CardTitle>
-            <CardDescription>Configure system alerts and notifications</CardHeader>
+            <CardDescription>Configure system alerts and notifications</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
