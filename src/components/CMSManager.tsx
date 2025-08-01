@@ -37,14 +37,18 @@ export const CMSManager = () => {
   // Fetch CMS content
   const { data: cmsContent = [], isLoading } = useQuery({
     queryKey: ['cms-content'],
-    queryFn: async () => {
+    queryFn: async (): Promise<CMSContent[]> => {
       try {
         const { data, error } = await supabase
-          .from('cms_content' as any)
+          .from('cms_content')
           .select('*')
           .order('section', { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Supabase error:', error);
+          throw error;
+        }
+        
         return (data || []) as CMSContent[];
       } catch (error) {
         console.error('Error fetching CMS content:', error);
@@ -57,7 +61,7 @@ export const CMSManager = () => {
   const updateContentMutation = useMutation({
     mutationFn: async (content: Partial<CMSContent>) => {
       const { error } = await supabase
-        .from('cms_content' as any)
+        .from('cms_content')
         .upsert(content);
 
       if (error) throw error;

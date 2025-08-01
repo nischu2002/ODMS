@@ -55,14 +55,18 @@ export const RestaurantRequestsManager = () => {
   // Fetch restaurant requests
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ['restaurant-requests'],
-    queryFn: async () => {
+    queryFn: async (): Promise<RestaurantRequest[]> => {
       try {
         const { data, error } = await supabase
-          .from('restaurant_requests' as any)
+          .from('restaurant_requests')
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Supabase error:', error);
+          throw error;
+        }
+        
         return (data || []) as RestaurantRequest[];
       } catch (error) {
         console.error('Error fetching restaurant requests:', error);
@@ -75,7 +79,7 @@ export const RestaurantRequestsManager = () => {
   const updateRequestMutation = useMutation({
     mutationFn: async ({ id, status, notes }: { id: string; status: 'approved' | 'rejected'; notes?: string }) => {
       const { error } = await supabase
-        .from('restaurant_requests' as any)
+        .from('restaurant_requests')
         .update({ status, notes, updated_at: new Date().toISOString() })
         .eq('id', id);
 
