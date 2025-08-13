@@ -233,12 +233,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: 'Restaurant not found' };
       }
 
-      // Create auth account
+      // Store current session
+      const currentSession = session;
+
+      // Create auth account first
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/login`
+          emailRedirectTo: `${window.location.origin}/login`,
+          data: {
+            name: data.name,
+            role: 'restaurant_staff'
+          }
         }
       });
 
@@ -250,10 +257,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: 'Failed to create auth account' };
       }
 
+      // Immediately restore the current session to prevent auto-login
+      if (currentSession) {
+        await supabase.auth.setSession(currentSession);
+      }
+
       // Create user profile
       const { error: userError } = await supabase
         .from('users')
-        .insert({
+        .upsert({
           id: authData.user.id,
           restaurant_id: restaurant.id,
           name: data.name,
@@ -264,6 +276,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
       if (userError) {
+        console.error('Error creating user profile:', userError);
         return { success: false, error: userError.message };
       }
 
@@ -280,12 +293,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: 'Restaurant not found' };
       }
 
-      // Create auth account
+      // Store current session
+      const currentSession = session;
+
+      // Create auth account first
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/login`
+          emailRedirectTo: `${window.location.origin}/login`,
+          data: {
+            name: data.name,
+            role: 'rider'
+          }
         }
       });
 
@@ -297,10 +317,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: 'Failed to create auth account' };
       }
 
+      // Immediately restore the current session to prevent auto-login
+      if (currentSession) {
+        await supabase.auth.setSession(currentSession);
+      }
+
       // Create user profile
       const { error: userError } = await supabase
         .from('users')
-        .insert({
+        .upsert({
           id: authData.user.id,
           restaurant_id: restaurant.id,
           name: data.name,
@@ -311,6 +336,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
       if (userError) {
+        console.error('Error creating user profile:', userError);
         return { success: false, error: userError.message };
       }
 
