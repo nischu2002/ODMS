@@ -72,34 +72,19 @@ export const RiderManagement = () => {
         body: {
           email: riderData.email,
           password: riderData.password,
-          user_metadata: {
-            name: riderData.name,
-            role: 'rider',
-            restaurant_id: restaurant.id
-          }
+          name: riderData.name,
+          role: 'rider',
+          phone: riderData.phone,
+          restaurant_id: restaurant.id
         }
       });
 
-      if (error) throw error;
-
-      if (data?.user) {
-        // Insert user data into our users table
-        const { error: userError } = await supabase
-          .from('users')
-          .upsert({
-            id: data.user.id,
-            name: riderData.name,
-            email: riderData.email,
-            phone: riderData.phone,
-            role: 'rider',
-            restaurant_id: restaurant.id,
-            is_active: true
-          });
-
-        if (userError) throw userError;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to create rider');
       }
 
-      return data?.user;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['riders', restaurant?.id] });

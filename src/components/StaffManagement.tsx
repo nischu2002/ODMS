@@ -82,34 +82,19 @@ export const StaffManagement = () => {
         body: {
           email: staffData.email,
           password: staffData.password,
-          user_metadata: {
-            name: staffData.name,
-            role: staffData.role,
-            restaurant_id: restaurant.id
-          }
+          name: staffData.name,
+          role: staffData.role,
+          phone: staffData.phone,
+          restaurant_id: restaurant.id
         }
       });
 
-      if (error) throw error;
-
-      if (data?.user) {
-        // Insert user data into our users table
-        const { error: userError } = await supabase
-          .from('users')
-          .upsert({
-            id: data.user.id,
-            name: staffData.name,
-            email: staffData.email,
-            phone: staffData.phone,
-            role: staffData.role,
-            restaurant_id: restaurant.id,
-            is_active: true
-          });
-
-        if (userError) throw userError;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to create staff member');
       }
 
-      return data?.user;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff', restaurant?.id] });

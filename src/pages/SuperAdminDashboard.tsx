@@ -495,7 +495,7 @@ export default function SuperAdminDashboard() {
 
   const renderCMS = () => <CMSManager />;
 
-  const renderRequests = () => <RestaurantRequestsManager />;
+  
 
   const renderNotifications = () => <SystemNotificationsManager />;
 
@@ -772,6 +772,10 @@ export default function SuperAdminDashboard() {
         </Card>
       </div>
     </div>
+  );
+
+  const renderRequests = () => (
+    <RestaurantRequestsManager />
   );
 
   if (showTeamCMS) {
