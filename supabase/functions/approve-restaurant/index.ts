@@ -20,19 +20,31 @@ serve(async (req) => {
 
     const { requestId, requestData } = await req.json()
 
-    // Create the auth user for restaurant admin
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: requestData.email,
-      password: 'TempPass123!', // Temporary password - user should reset
-      user_metadata: {
-        name: requestData.owner_name,
-        role: 'admin'
-      },
-      email_confirm: true
-    })
+    // Check if user already exists
+    const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers()
+    const userExists = existingUser.users.some(u => u.email === requestData.email)
 
-    if (authError) {
-      throw authError
+    let authUser
+    if (userExists) {
+      // Get existing user
+      const existingUserData = existingUser.users.find(u => u.email === requestData.email)
+      authUser = { user: existingUserData }
+    } else {
+      // Create new auth user for restaurant admin
+      const { data: newAuthUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: requestData.email,
+        password: 'TempPass123!', // Temporary password - user should reset
+        user_metadata: {
+          name: requestData.owner_name,
+          role: 'admin'
+        },
+        email_confirm: true
+      })
+
+      if (authError) {
+        throw authError
+      }
+      authUser = newAuthUser
     }
 
     // Create the restaurant
