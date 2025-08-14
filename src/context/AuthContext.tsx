@@ -158,69 +158,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const domain = generateDomain(data.restaurantName);
       
-      const { data: existingRestaurant } = await supabase
-        .from('restaurants')
+      const { data: existingRequest } = await supabase
+        .from('restaurant_requests')
         .select('id')
         .eq('domain', domain)
         .maybeSingle();
 
-      if (existingRestaurant) {
-        return { success: false, error: `Domain "${domain}" already exists. Please choose a different restaurant name.` };
+      if (existingRequest) {
+        return { success: false, error: `Domain "${domain}" already requested. Please choose a different restaurant name.` };
       }
 
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.adminEmail,
-        password: data.adminPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`
-        }
-      });
-
-      if (authError) {
-        if (authError.message.includes('already registered')) {
-          return { success: false, error: `Email "${data.adminEmail}" already exists. Please use a different email.` };
-        }
-        return { success: false, error: authError.message };
-      }
-
-      if (!authData.user) {
-        return { success: false, error: 'Failed to create user account' };
-      }
-
-      const { data: restaurantData, error: restaurantError } = await supabase
-        .from('restaurants')
+      // Create a restaurant request instead of directly creating the restaurant
+      const { error: requestError } = await supabase
+        .from('restaurant_requests')
         .insert({
-          name: data.restaurantName,
-          domain: domain,
-          address: data.address,
+          restaurant_name: data.restaurantName,
+          business_type: data.businessType,
+          owner_name: data.ownerName,
+          email: data.adminEmail,
           phone: data.phone,
-          email: data.adminEmail,
-          admin_id: authData.user.id,
-          business_type: data.businessType
-        })
-        .select()
-        .single();
-
-      if (restaurantError) {
-        return { success: false, error: restaurantError.message };
-      }
-
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          restaurant_id: restaurantData.id,
-          email: data.adminEmail,
-          name: data.ownerName,
-          role: 'admin',
-          phone: data.phone
+          address: data.address,
+          domain: domain,
+          status: 'pending'
         });
 
-      if (userError) {
-        return { success: false, error: userError.message };
+      if (requestError) {
+        return { success: false, error: requestError.message };
       }
 
-      return { success: true, domain };
+      return { 
+        success: true, 
+        domain,
+        error: 'Your restaurant request has been submitted successfully! You will be notified once a super admin approves your request.'
+      };
     } catch (error) {
       console.error('Registration error:', error);
       return { success: false, error: 'Registration failed. Please try again.' };

@@ -67,48 +67,39 @@ export const RiderManagement = () => {
     mutationFn: async (riderData: typeof newRider) => {
       if (!restaurant?.id) throw new Error('No restaurant selected');
 
-      // First, create the user account
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: riderData.email,
-        password: riderData.password,
-        options: {
-          data: {
+      // Use the edge function to create user account with admin privileges
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: riderData.email,
+          password: riderData.password,
+          user_metadata: {
             name: riderData.name,
-            role: 'rider'
+            role: 'rider',
+            restaurant_id: restaurant.id
           }
         }
       });
 
-      if (authError) {
-        console.error('Auth error:', authError);
-        throw new Error(`Authentication error: ${authError.message}`);
+      if (error) throw error;
+
+      if (data?.user) {
+        // Insert user data into our users table
+        const { error: userError } = await supabase
+          .from('users')
+          .upsert({
+            id: data.user.id,
+            name: riderData.name,
+            email: riderData.email,
+            phone: riderData.phone,
+            role: 'rider',
+            restaurant_id: restaurant.id,
+            is_active: true
+          });
+
+        if (userError) throw userError;
       }
 
-      if (!authData.user) {
-        throw new Error('Failed to create user account');
-      }
-
-      // Then insert the user data into our users table
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          name: riderData.name,
-          email: riderData.email,
-          phone: riderData.phone,
-          role: 'rider',
-          restaurant_id: restaurant.id,
-          is_active: true
-        });
-
-      if (userError) {
-        console.error('User table error:', userError);
-        // If user table insert fails, we should clean up the auth user
-        // Note: In production, you might want to handle this differently
-        throw new Error(`Failed to create user profile: ${userError.message}`);
-      }
-
-      return authData.user;
+      return data?.user;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['riders', restaurant?.id] });

@@ -78,26 +78,37 @@ export const RestaurantRequestsManager = () => {
   // Approve/Reject request mutation
   const updateRequestMutation = useMutation({
     mutationFn: async ({ id, status, notes }: { id: string; status: 'approved' | 'rejected'; notes?: string }) => {
-      const { error } = await supabase
+      const { data: requestData, error: fetchError } = await supabase
         .from('restaurant_requests')
-        .update({ status, notes, updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .select('*')
+        .eq('id', id)
+        .single();
 
-      if (error) throw error;
+      if (fetchError) throw fetchError;
 
       if (status === 'approved') {
-        // Create restaurant and admin account
-        const request = requests.find(r => r.id === id);
-        if (request) {
-          // This would trigger the actual restaurant creation process
-          // For now, we'll just update the status
-        }
+        // Create the restaurant and admin user via edge function
+        const { data, error } = await supabase.functions.invoke('approve-restaurant', {
+          body: { requestId: id, requestData }
+        });
+
+        if (error) throw error;
+        return data;
+      } else {
+        // Just update the status for rejection
+        const { error } = await supabase
+          .from('restaurant_requests')
+          .update({ status, notes, updated_at: new Date().toISOString() })
+          .eq('id', id);
+
+        if (error) throw error;
       }
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['restaurant-requests'] });
       toast({ 
-        title: `Request ${variables.status === 'approved' ? 'approved' : 'rejected'} successfully` 
+        title: `Request ${variables.status === 'approved' ? 'approved' : 'rejected'} successfully`,
+        description: variables.status === 'approved' ? 'Restaurant has been created and admin account set up.' : undefined
       });
     },
     onError: (error) => {

@@ -63,12 +63,12 @@ export default function RestaurantSignup() {
       
       if (result.success) {
         toast({
-          title: "Registration Successful!",
-          description: `Your domain ${result.domain}.odms.com has been created.`,
+          title: "Request Submitted!",
+          description: result.error || `Your restaurant request has been submitted for approval.`,
         });
 
-        // Redirect to domain setup page
-        navigate(`/setup/${result.domain}`);
+        // Redirect to home page
+        navigate('/');
       } else {
         toast({
           title: "Registration Failed",

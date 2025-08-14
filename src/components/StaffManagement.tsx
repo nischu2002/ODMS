@@ -77,25 +77,27 @@ export const StaffManagement = () => {
     mutationFn: async (staffData: typeof newStaff) => {
       if (!restaurant?.id) throw new Error('No restaurant selected');
 
-      // Create user account without affecting current session
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: staffData.email,
-        password: staffData.password,
-        email_confirm: true,
-        user_metadata: {
-          name: staffData.name,
-          role: staffData.role
+      // Use the edge function to create user account with admin privileges
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: staffData.email,
+          password: staffData.password,
+          user_metadata: {
+            name: staffData.name,
+            role: staffData.role,
+            restaurant_id: restaurant.id
+          }
         }
       });
 
-      if (authError) throw authError;
+      if (error) throw error;
 
-      if (authData.user) {
+      if (data?.user) {
         // Insert user data into our users table
         const { error: userError } = await supabase
           .from('users')
-          .insert({
-            id: authData.user.id,
+          .upsert({
+            id: data.user.id,
             name: staffData.name,
             email: staffData.email,
             phone: staffData.phone,
@@ -107,7 +109,7 @@ export const StaffManagement = () => {
         if (userError) throw userError;
       }
 
-      return authData.user;
+      return data?.user;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff', restaurant?.id] });
