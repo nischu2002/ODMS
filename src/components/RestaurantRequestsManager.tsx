@@ -21,9 +21,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from './ui/dialog';
-import { Check, X, Edit, Trash2, RotateCcw } from 'lucide-react';
+import { Check, X, Edit, Trash2, RotateCcw, Copy } from 'lucide-react';
 
 interface RestaurantRequest {
   id: string;
@@ -56,6 +55,9 @@ export const RestaurantRequestsManager = () => {
   const [newPassword, setNewPassword] = useState('');
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [selectedAdminId, setSelectedAdminId] = useState('');
+  const [approvalResult, setApprovalResult] = useState<any>(null);
+  const [showCredentialsDialog, setShowCredentialsDialog] = useState(false);
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -90,6 +92,7 @@ export const RestaurantRequestsManager = () => {
   // Approve restaurant mutation
   const approveRestaurantMutation = useMutation({
     mutationFn: async (request: RestaurantRequest) => {
+      console.log('Calling approve-restaurant function with:', request);
       const { data, error } = await supabase.functions.invoke('approve-restaurant', {
         body: {
           requestId: request.id,
@@ -97,21 +100,32 @@ export const RestaurantRequestsManager = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Function invocation error:', error);
+        throw error;
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to approve restaurant');
+      }
+
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['restaurant-requests'] });
       queryClient.invalidateQueries({ queryKey: ['restaurants'] });
+      setApprovalResult(data);
+      setShowCredentialsDialog(true);
       toast({ 
         title: "Restaurant approved successfully",
-        description: `Login credentials - Email: ${data.restaurant?.email}, Password: ${data.defaultPassword}`
+        description: `Login credentials created. Check the dialog for details.`
       });
     },
     onError: (error: any) => {
+      console.error('Approval error:', error);
       toast({ 
         title: "Error approving restaurant", 
-        description: error.message,
+        description: error.message || "An unexpected error occurred",
         variant: "destructive" 
       });
     }
@@ -225,7 +239,17 @@ export const RestaurantRequestsManager = () => {
     }
   });
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Copied to clipboard" });
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
   const handleApprove = (request: RestaurantRequest) => {
+    console.log('Starting approval process for:', request);
     approveRestaurantMutation.mutate(request);
   };
 
@@ -481,6 +505,86 @@ export const RestaurantRequestsManager = () => {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Login Credentials Dialog */}
+      <Dialog open={showCredentialsDialog} onOpenChange={setShowCredentialsDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Restaurant Approved Successfully!</DialogTitle>
+            <DialogDescription>Login credentials for the restaurant admin</DialogDescription>
+          </DialogHeader>
+          {approvalResult && (
+            <div className="space-y-4">
+              <div className="bg-green-50 p-4 rounded-lg space-y-3">
+                <div>
+                  <Label className="font-semibold">Email:</Label>
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      value={approvalResult.loginCredentials?.email || ''} 
+                      readOnly 
+                      className="bg-white"
+                    />
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => copyToClipboard(approvalResult.loginCredentials?.email || '')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <Label className="font-semibold">Password:</Label>
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      value={approvalResult.defaultPassword || ''} 
+                      readOnly 
+                      className="bg-white"
+                    />
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => copyToClipboard(approvalResult.defaultPassword || '')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <Label className="font-semibold">Domain:</Label>
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      value={approvalResult.loginCredentials?.domain || ''} 
+                      readOnly 
+                      className="bg-white"
+                    />
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => copyToClipboard(approvalResult.loginCredentials?.domain || '')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <div className="text-sm text-gray-600">
+                <p>The restaurant admin can now login using these credentials.</p>
+                <p>They should change their password after first login.</p>
+              </div>
+              <Button 
+                onClick={() => {
+                  setShowCredentialsDialog(false);
+                  setApprovalResult(null);
+                }}
+                className="w-full"
+              >
+                Done
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

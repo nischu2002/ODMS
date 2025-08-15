@@ -27,41 +27,91 @@ serve(async (req) => {
       throw new Error('Missing required fields: email, password, name, role, restaurant_id')
     }
 
-    // Check if user already exists
+    // Validate the restaurant exists and is active
+    const { data: restaurant, error: restaurantError } = await supabaseAdmin
+      .from('restaurants')
+      .select('id, is_active')
+      .eq('id', restaurant_id)
+      .single()
+
+    if (restaurantError || !restaurant) {
+      console.error('Restaurant validation error:', restaurantError)
+      throw new Error('Invalid restaurant ID or restaurant not found')
+    }
+
+    if (!restaurant.is_active) {
+      throw new Error('Restaurant is not active')
+    }
+
+    // Check if user already exists by email
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
     const existingUser = existingUsers.users.find(u => u.email === email)
 
     if (existingUser) {
-      throw new Error('User with this email already exists')
+      // Check if user already has a profile in this restaurant
+      const { data: existingProfile } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('id', existingUser.id)
+        .single()
+
+      if (existingProfile) {
+        throw new Error('User with this email already exists in the system')
+      }
     }
 
-    // Create the auth user
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      user_metadata: {
-        name,
-        role
-      },
-      email_confirm: true // Auto-confirm email
-    })
+    let authUserId;
 
-    if (authError) {
-      console.error('Auth creation error:', authError)
-      throw new Error(`Failed to create auth user: ${authError.message}`)
+    if (existingUser) {
+      console.log('Using existing auth user:', existingUser.id)
+      authUserId = existingUser.id
+      
+      // Update user metadata
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        existingUser.id,
+        {
+          user_metadata: {
+            name,
+            role
+          }
+        }
+      )
+
+      if (updateError) {
+        console.error('Error updating user metadata:', updateError)
+        throw new Error(`Failed to update user metadata: ${updateError.message}`)
+      }
+    } else {
+      console.log('Creating new auth user')
+      // Create the auth user
+      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        user_metadata: {
+          name,
+          role
+        },
+        email_confirm: true // Auto-confirm email
+      })
+
+      if (authError) {
+        console.error('Auth creation error:', authError)
+        throw new Error(`Failed to create auth user: ${authError.message}`)
+      }
+
+      if (!authUser.user) {
+        throw new Error('Auth user creation returned no user data')
+      }
+
+      authUserId = authUser.user.id
+      console.log('Auth user created successfully:', authUserId)
     }
-
-    if (!authUser.user) {
-      throw new Error('Auth user creation returned no user data')
-    }
-
-    console.log('Auth user created successfully:', authUser.user.id)
 
     // Create the user profile in the users table
-    const { error: userError } = await supabaseAdmin
+    const { data: userProfile, error: userError } = await supabaseAdmin
       .from('users')
       .insert({
-        id: authUser.user.id,
+        id: authUserId,
         restaurant_id,
         email,
         name,
@@ -69,15 +119,20 @@ serve(async (req) => {
         phone: phone || null,
         is_active: true
       })
+      .select()
+      .single()
 
     if (userError) {
       console.error('Error creating user profile:', userError)
       
-      // If profile creation fails, clean up the auth user
-      try {
-        await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
-      } catch (cleanupError) {
-        console.error('Error cleaning up auth user:', cleanupError)
+      // If profile creation fails and we created a new auth user, clean it up
+      if (!existingUser) {
+        try {
+          await supabaseAdmin.auth.admin.deleteUser(authUserId)
+          console.log('Cleaned up auth user after profile creation failure')
+        } catch (cleanupError) {
+          console.error('Error cleaning up auth user:', cleanupError)
+        }
       }
       
       throw new Error(`Failed to create user profile: ${userError.message}`)
@@ -85,14 +140,28 @@ serve(async (req) => {
 
     console.log('User profile created successfully')
 
+    // Create notification for restaurant admin
+    const { error: notificationError } = await supabaseAdmin
+      .from('notifications')
+      .insert({
+        notification_type: 'user_created',
+        message: `New ${role} account created for ${name}`,
+        status: 'pending'
+      })
+
+    if (notificationError) {
+      console.error('Error creating notification:', notificationError)
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         user: {
-          id: authUser.user.id,
-          email: authUser.user.email,
+          id: authUserId,
+          email: email,
           name,
-          role
+          role,
+          restaurant_id
         },
         message: 'User created successfully'
       }),

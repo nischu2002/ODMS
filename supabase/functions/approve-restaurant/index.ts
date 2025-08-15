@@ -21,8 +21,11 @@ serve(async (req) => {
 
     const { requestId, requestData, action, restaurantId, updates } = await req.json()
 
+    console.log('Received request:', { action, requestId, restaurantId })
+
     // Handle different actions
     if (action === 'update_restaurant') {
+      console.log('Updating restaurant with:', updates)
       // Update restaurant details
       const { error: updateError } = await supabaseAdmin
         .from('restaurants')
@@ -30,6 +33,7 @@ serve(async (req) => {
         .eq('id', restaurantId)
 
       if (updateError) {
+        console.error('Error updating restaurant:', updateError)
         throw updateError
       }
 
@@ -43,13 +47,25 @@ serve(async (req) => {
     }
 
     if (action === 'delete_restaurant') {
-      // Delete restaurant and associated data
+      console.log('Deleting restaurant:', restaurantId)
+      // First delete associated users
+      const { error: deleteUsersError } = await supabaseAdmin
+        .from('users')
+        .delete()
+        .eq('restaurant_id', restaurantId)
+
+      if (deleteUsersError) {
+        console.error('Error deleting users:', deleteUsersError)
+      }
+
+      // Delete restaurant
       const { error: deleteError } = await supabaseAdmin
         .from('restaurants')
         .delete()
         .eq('id', restaurantId)
 
       if (deleteError) {
+        console.error('Error deleting restaurant:', deleteError)
         throw deleteError
       }
 
@@ -63,6 +79,7 @@ serve(async (req) => {
     }
 
     if (action === 'reset_password') {
+      console.log('Resetting password for admin:', updates.admin_id)
       // Reset restaurant admin password
       const { error: resetError } = await supabaseAdmin.auth.admin.updateUserById(
         updates.admin_id,
@@ -70,6 +87,7 @@ serve(async (req) => {
       )
 
       if (resetError) {
+        console.error('Error resetting password:', resetError)
         throw resetError
       }
 
@@ -87,14 +105,37 @@ serve(async (req) => {
       throw new Error('Missing requestId or requestData')
     }
 
-    // Check if user already exists
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-    let authUser = existingUsers.users.find(u => u.email === requestData.email)
+    console.log('Approving restaurant request:', requestData)
 
-    if (!authUser) {
-      // Create new auth user with a default password that user can change
-      const defaultPassword = 'Restaurant123!'
-      
+    // Check if user already exists by email
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
+    let existingUser = existingUsers.users.find(u => u.email === requestData.email)
+
+    let authUser;
+    const defaultPassword = 'Restaurant123!'
+
+    if (existingUser) {
+      console.log('User already exists, updating password:', existingUser.id)
+      // Update existing user's password
+      const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        existingUser.id,
+        { 
+          password: defaultPassword,
+          user_metadata: {
+            name: requestData.owner_name,
+            role: 'admin'
+          }
+        }
+      )
+
+      if (updateError) {
+        console.error('Error updating existing user:', updateError)
+        throw updateError
+      }
+      authUser = updatedUser.user
+    } else {
+      console.log('Creating new user for restaurant approval')
+      // Create new auth user
       const { data: newAuthUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: requestData.email,
         password: defaultPassword,
@@ -106,10 +147,17 @@ serve(async (req) => {
       })
 
       if (authError) {
+        console.error('Error creating auth user:', authError)
         throw authError
       }
       authUser = newAuthUser.user
     }
+
+    if (!authUser) {
+      throw new Error('Failed to create or update auth user')
+    }
+
+    console.log('Auth user ready:', authUser.id)
 
     // Create the restaurant
     const { data: restaurantData, error: restaurantError } = await supabaseAdmin
@@ -127,8 +175,11 @@ serve(async (req) => {
       .single()
 
     if (restaurantError) {
+      console.error('Error creating restaurant:', restaurantError)
       throw restaurantError
     }
+
+    console.log('Restaurant created:', restaurantData.id)
 
     // Create or update the user profile
     const { error: userError } = await supabaseAdmin
@@ -144,8 +195,11 @@ serve(async (req) => {
       })
 
     if (userError) {
+      console.error('Error creating user profile:', userError)
       throw userError
     }
+
+    console.log('User profile created successfully')
 
     // Update the request status to approved
     const { error: updateError } = await supabaseAdmin
@@ -157,17 +211,36 @@ serve(async (req) => {
       .eq('id', requestId)
 
     if (updateError) {
+      console.error('Error updating request status:', updateError)
       throw updateError
     }
 
-    console.log(`Restaurant ${requestData.restaurant_name} approved and created`)
+    // Create notification for super admins
+    const { error: notificationError } = await supabaseAdmin
+      .from('notifications')
+      .insert({
+        notification_type: 'restaurant_approved',
+        message: `Restaurant ${requestData.restaurant_name} has been approved and is now active`,
+        status: 'pending'
+      })
+
+    if (notificationError) {
+      console.error('Error creating notification:', notificationError)
+    }
+
+    console.log(`Restaurant ${requestData.restaurant_name} approved and created successfully`)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         restaurant: restaurantData,
-        defaultPassword: 'Restaurant123!',
-        message: 'Restaurant approved and created successfully. Default password is: Restaurant123!'
+        defaultPassword: defaultPassword,
+        loginCredentials: {
+          email: requestData.email,
+          password: defaultPassword,
+          domain: requestData.domain
+        },
+        message: `Restaurant approved successfully! Login credentials - Email: ${requestData.email}, Password: ${defaultPassword}, Domain: ${requestData.domain}`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -178,7 +251,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in approve-restaurant function:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: 'Check function logs for more information'
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
