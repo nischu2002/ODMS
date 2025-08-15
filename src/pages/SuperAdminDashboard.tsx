@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '../components/Layout/DashboardLayout';
@@ -64,7 +63,7 @@ interface User {
 }
 
 export default function SuperAdminDashboard() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
   const [searchTerm, setSearchTerm] = useState('');
   const [showTeamCMS, setShowTeamCMS] = useState(false);
@@ -496,8 +495,6 @@ export default function SuperAdminDashboard() {
 
   const renderCMS = () => <CMSManager />;
 
-  
-
   const renderNotifications = () => <SystemNotificationsManager />;
 
   const renderSettings = () => (
@@ -776,7 +773,7 @@ export default function SuperAdminDashboard() {
   );
 
   const renderRequests = () => (
-    <RestaurantRequestsManager />
+    <RestaurantRequestsManager onClose={() => setSearchParams({ tab: 'overview' })} />
   );
 
   if (showTeamCMS) {
