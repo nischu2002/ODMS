@@ -1,28 +1,16 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Badge } from './ui/badge';
-import { useToast } from '../hooks/use-toast';
-import { supabase } from '../integrations/supabase/client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from './ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
-import { Check, X, Edit, Trash2, RotateCcw, Copy } from 'lucide-react';
+
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { CheckCircle, XCircle, Eye, Edit, Trash2, Key } from 'lucide-react';
 
 interface RestaurantRequest {
   id: string;
@@ -33,463 +21,512 @@ interface RestaurantRequest {
   phone: string;
   address: string;
   domain: string;
-  status: string;
-  notes?: string;
+  status: 'pending' | 'approved' | 'rejected';
   created_at: string;
+  notes?: string;
 }
 
 interface Restaurant {
   id: string;
   name: string;
   domain: string;
-  address: string;
-  phone: string;
   email: string;
+  phone: string;
+  address: string;
+  business_type: string;
   admin_id: string;
-  business_type?: string;
   is_active: boolean;
+  created_at: string;
 }
 
-export const RestaurantRequestsManager = () => {
-  const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
+const RestaurantRequestsManager = () => {
+  const [requests, setRequests] = useState<RestaurantRequest[]>([]);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedRequest, setSelectedRequest] = useState<RestaurantRequest | null>(null);
+  const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editData, setEditData] = useState<any>({});
   const [newPassword, setNewPassword] = useState('');
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
-  const [selectedAdminId, setSelectedAdminId] = useState('');
-  const [approvalResult, setApprovalResult] = useState<any>(null);
-  const [showCredentialsDialog, setShowCredentialsDialog] = useState(false);
-  
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  // Fetch restaurant requests
-  const { data: requests = [], isLoading: requestsLoading } = useQuery({
-    queryKey: ['restaurant-requests'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      // Fetch pending requests
+      const { data: requestsData, error: requestsError } = await supabase
         .from('restaurant_requests')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data as RestaurantRequest[];
-    }
-  });
+      if (requestsError) throw requestsError;
 
-  // Fetch existing restaurants
-  const { data: restaurants = [], isLoading: restaurantsLoading } = useQuery({
-    queryKey: ['restaurants'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch approved restaurants
+      const { data: restaurantsData, error: restaurantsError } = await supabase
         .from('restaurants')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data as Restaurant[];
-    }
-  });
+      if (restaurantsError) throw restaurantsError;
 
-  // Approve restaurant mutation
-  const approveRestaurantMutation = useMutation({
-    mutationFn: async (request: RestaurantRequest) => {
-      console.log('Calling approve-restaurant function with:', request);
-      const { data, error } = await supabase.functions.invoke('approve-restaurant', {
-        body: {
+      setRequests(requestsData || []);
+      setRestaurants(restaurantsData || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApprove = async (request: RestaurantRequest) => {
+    try {
+      const response = await fetch(`https://dpbpaonsyfodtteebszv.supabase.co/functions/v1/approve-restaurant`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwYnBhb25zeWZvZHR0ZWVic3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MjEwNTEsImV4cCI6MjA2NTM5NzA1MX0.4h1ephRvY981xVUQfQx8GFz_G50KN68XFf8EnM_VgUo'}`,
+        },
+        body: JSON.stringify({
           requestId: request.id,
           requestData: request
-        }
+        }),
       });
 
-      if (error) {
-        console.error('Function invocation error:', error);
-        throw error;
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(`Restaurant approved successfully! Login credentials: Email: ${result.loginCredentials.email}, Password: ${result.loginCredentials.password}, Domain: ${result.loginCredentials.domain}`);
+        fetchData();
+      } else {
+        toast.error(result.error || 'Failed to approve restaurant');
       }
-
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to approve restaurant');
-      }
-
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['restaurant-requests'] });
-      queryClient.invalidateQueries({ queryKey: ['restaurants'] });
-      setApprovalResult(data);
-      setShowCredentialsDialog(true);
-      toast({ 
-        title: "Restaurant approved successfully",
-        description: `Login credentials created. Check the dialog for details.`
-      });
-    },
-    onError: (error: any) => {
-      console.error('Approval error:', error);
-      toast({ 
-        title: "Error approving restaurant", 
-        description: error.message || "An unexpected error occurred",
-        variant: "destructive" 
-      });
+    } catch (error) {
+      console.error('Error approving restaurant:', error);
+      toast.error('Failed to approve restaurant');
     }
-  });
+  };
 
-  // Reject restaurant mutation
-  const rejectRestaurantMutation = useMutation({
-    mutationFn: async (requestId: string) => {
+  const handleReject = async (requestId: string) => {
+    try {
       const { error } = await supabase
         .from('restaurant_requests')
         .update({ status: 'rejected' })
         .eq('id', requestId);
 
       if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['restaurant-requests'] });
-      toast({ title: "Restaurant request rejected" });
-    },
-    onError: (error: any) => {
-      toast({ 
-        title: "Error rejecting request", 
-        description: error.message,
-        variant: "destructive" 
-      });
-    }
-  });
 
-  // Update restaurant mutation
-  const updateRestaurantMutation = useMutation({
-    mutationFn: async (updates: Partial<Restaurant> & { id: string }) => {
-      const { data, error } = await supabase.functions.invoke('approve-restaurant', {
-        body: {
+      toast.success('Restaurant request rejected');
+      fetchData();
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      toast.error('Failed to reject request');
+    }
+  };
+
+  const handleUpdateRestaurant = async () => {
+    if (!selectedRestaurant) return;
+
+    try {
+      const response = await fetch(`https://dpbpaonsyfodtteebszv.supabase.co/functions/v1/approve-restaurant`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwYnBhb25zeWZvZHR0ZWVic3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MjEwNTEsImV4cCI6MjA2NTM5NzA1MX0.4h1ephRvY981xVUQfQx8GFz_G50KN68XFf8EnM_VgUo'}`,
+        },
+        body: JSON.stringify({
           action: 'update_restaurant',
-          restaurantId: updates.id,
-          updates
-        }
+          restaurantId: selectedRestaurant.id,
+          updates: editData
+        }),
       });
 
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['restaurants'] });
-      toast({ title: "Restaurant updated successfully" });
-      setEditingRestaurant(null);
-    },
-    onError: (error: any) => {
-      toast({ 
-        title: "Error updating restaurant", 
-        description: error.message,
-        variant: "destructive" 
-      });
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Restaurant updated successfully');
+        setEditMode(false);
+        fetchData();
+      } else {
+        toast.error(result.error || 'Failed to update restaurant');
+      }
+    } catch (error) {
+      console.error('Error updating restaurant:', error);
+      toast.error('Failed to update restaurant');
     }
-  });
+  };
 
-  // Delete restaurant mutation
-  const deleteRestaurantMutation = useMutation({
-    mutationFn: async (restaurantId: string) => {
-      const { data, error } = await supabase.functions.invoke('approve-restaurant', {
-        body: {
+  const handleDeleteRestaurant = async (restaurantId: string) => {
+    if (!confirm('Are you sure? This will delete the restaurant and ALL related data (users, orders, etc.)')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`https://dpbpaonsyfodtteebszv.supabase.co/functions/v1/approve-restaurant`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwYnBhb25zeWZvZHR0ZWVic3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MjEwNTEsImV4cCI6MjA2NTM5NzA1MX0.4h1ephRvY981xVUQfQx8GFz_G50KN68XFf8EnM_VgUo'}`,
+        },
+        body: JSON.stringify({
           action: 'delete_restaurant',
-          restaurantId
-        }
+          restaurantId: restaurantId
+        }),
       });
 
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['restaurants'] });
-      toast({ title: "Restaurant deleted successfully" });
-    },
-    onError: (error: any) => {
-      toast({ 
-        title: "Error deleting restaurant", 
-        description: error.message,
-        variant: "destructive" 
-      });
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Restaurant and all related data deleted successfully');
+        fetchData();
+      } else {
+        toast.error(result.error || 'Failed to delete restaurant');
+      }
+    } catch (error) {
+      console.error('Error deleting restaurant:', error);
+      toast.error('Failed to delete restaurant');
     }
-  });
+  };
 
-  // Reset password mutation
-  const resetPasswordMutation = useMutation({
-    mutationFn: async ({ adminId, newPassword }: { adminId: string; newPassword: string }) => {
-      const { data, error } = await supabase.functions.invoke('approve-restaurant', {
-        body: {
+  const handleResetPassword = async () => {
+    if (!selectedRestaurant || !newPassword) return;
+
+    try {
+      const response = await fetch(`https://dpbpaonsyfodtteebszv.supabase.co/functions/v1/approve-restaurant`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwYnBhb25zeWZvZHR0ZWVic3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MjEwNTEsImV4cCI6MjA2NTM5NzA1MX0.4h1ephRvY981xVUQfQx8GFz_G50KN68XFf8EnM_VgUo'}`,
+        },
+        body: JSON.stringify({
           action: 'reset_password',
           updates: {
-            admin_id: adminId,
+            admin_id: selectedRestaurant.admin_id,
             new_password: newPassword
           }
-        }
+        }),
       });
 
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast({ title: "Password reset successfully" });
-      setShowPasswordDialog(false);
-      setNewPassword('');
-      setSelectedAdminId('');
-    },
-    onError: (error: any) => {
-      toast({ 
-        title: "Error resetting password", 
-        description: error.message,
-        variant: "destructive" 
-      });
-    }
-  });
+      const result = await response.json();
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({ title: "Copied to clipboard" });
-    } catch (err) {
-      console.error('Failed to copy:', err);
+      if (result.success) {
+        toast.success('Password reset successfully');
+        setShowPasswordDialog(false);
+        setNewPassword('');
+      } else {
+        toast.error(result.error || 'Failed to reset password');
+      }
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      toast.error('Failed to reset password');
     }
   };
 
-  const handleApprove = (request: RestaurantRequest) => {
-    console.log('Starting approval process for:', request);
-    approveRestaurantMutation.mutate(request);
-  };
-
-  const handleReject = (requestId: string) => {
-    rejectRestaurantMutation.mutate(requestId);
-  };
-
-  const handleUpdateRestaurant = (updates: Partial<Restaurant>) => {
-    if (editingRestaurant) {
-      updateRestaurantMutation.mutate({ ...updates, id: editingRestaurant.id });
-    }
-  };
-
-  const handleDeleteRestaurant = (restaurantId: string) => {
-    if (confirm('Are you sure you want to delete this restaurant? This action cannot be undone.')) {
-      deleteRestaurantMutation.mutate(restaurantId);
-    }
-  };
-
-  const handleResetPassword = () => {
-    if (selectedAdminId && newPassword) {
-      resetPasswordMutation.mutate({ adminId: selectedAdminId, newPassword });
-    }
-  };
-
-  if (requestsLoading || restaurantsLoading) {
-    return <div className="flex items-center justify-center p-8">Loading...</div>;
+  if (loading) {
+    return <div className="p-6">Loading...</div>;
   }
 
   return (
-    <div className="space-y-6">
-      {/* Restaurant Requests */}
+    <div className="p-6 space-y-6">
+      <h1 className="text-3xl font-bold">Restaurant Management</h1>
+      
+      {/* Pending Requests */}
       <Card>
         <CardHeader>
-          <CardTitle>Restaurant Requests ({requests.length})</CardTitle>
-          <CardDescription>Manage pending restaurant registration requests</CardDescription>
+          <CardTitle>Pending Restaurant Requests</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Restaurant Name</TableHead>
-                <TableHead>Owner</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Domain</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {requests.map((request) => (
-                <TableRow key={request.id}>
-                  <TableCell className="font-medium">{request.restaurant_name}</TableCell>
-                  <TableCell>{request.owner_name}</TableCell>
-                  <TableCell>{request.email}</TableCell>
-                  <TableCell>{request.domain}</TableCell>
-                  <TableCell>
-                    <Badge className={
-                      request.status === 'approved' ? 'bg-green-100 text-green-800' :
-                      request.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }>
-                      {request.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{new Date(request.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    {request.status === 'pending' && (
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => handleApprove(request)}
-                          disabled={approveRestaurantMutation.isPending}
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleReject(request.id)}
-                          disabled={rejectRestaurantMutation.isPending}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {requests.length === 0 && (
-            <p className="text-center text-gray-500 py-8">No restaurant requests found</p>
-          )}
+          <div className="space-y-4">
+            {requests.filter(r => r.status === 'pending').map((request) => (
+              <div key={request.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex-1">
+                  <h3 className="font-semibold">{request.restaurant_name}</h3>
+                  <p className="text-sm text-gray-600">{request.owner_name} - {request.email}</p>
+                  <p className="text-sm text-gray-500">{request.business_type} - {request.domain}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedRequest(request)}>
+                        <Eye className="w-4 h-4 mr-1" />
+                        View
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Restaurant Request Details</DialogTitle>
+                      </DialogHeader>
+                      {selectedRequest && (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label>Restaurant Name</Label>
+                              <p className="font-medium">{selectedRequest.restaurant_name}</p>
+                            </div>
+                            <div>
+                              <Label>Business Type</Label>
+                              <p className="font-medium">{selectedRequest.business_type}</p>
+                            </div>
+                            <div>
+                              <Label>Owner Name</Label>
+                              <p className="font-medium">{selectedRequest.owner_name}</p>
+                            </div>
+                            <div>
+                              <Label>Email</Label>
+                              <p className="font-medium">{selectedRequest.email}</p>
+                            </div>
+                            <div>
+                              <Label>Phone</Label>
+                              <p className="font-medium">{selectedRequest.phone}</p>
+                            </div>
+                            <div>
+                              <Label>Domain</Label>
+                              <p className="font-medium">{selectedRequest.domain}</p>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>Address</Label>
+                            <p className="font-medium">{selectedRequest.address}</p>
+                          </div>
+                        </div>
+                      )}
+                    </DialogContent>
+                  </Dialog>
+                  
+                  <Button 
+                    size="sm" 
+                    onClick={() => handleApprove(request)}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                    Approve
+                  </Button>
+                  
+                  <Button 
+                    size="sm" 
+                    variant="destructive"
+                    onClick={() => handleReject(request.id)}
+                  >
+                    <XCircle className="w-4 h-4 mr-1" />
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+            
+            {requests.filter(r => r.status === 'pending').length === 0 && (
+              <p className="text-gray-500 text-center py-8">No pending requests</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Existing Restaurants Management */}
+      {/* Approved Restaurants */}
       <Card>
         <CardHeader>
-          <CardTitle>Existing Restaurants ({restaurants.length})</CardTitle>
-          <CardDescription>Manage existing restaurants and their settings</CardDescription>
+          <CardTitle>Approved Restaurants</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Domain</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {restaurants.map((restaurant) => (
-                <TableRow key={restaurant.id}>
-                  <TableCell className="font-medium">{restaurant.name}</TableCell>
-                  <TableCell>{restaurant.domain}</TableCell>
-                  <TableCell>{restaurant.email}</TableCell>
-                  <TableCell>{restaurant.phone}</TableCell>
-                  <TableCell>
-                    <Badge className={restaurant.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                      {restaurant.is_active ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingRestaurant(restaurant)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
+          <div className="space-y-4">
+            {restaurants.map((restaurant) => (
+              <div key={restaurant.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex-1">
+                  <h3 className="font-semibold">{restaurant.name}</h3>
+                  <p className="text-sm text-gray-600">{restaurant.email} - {restaurant.phone}</p>
+                  <p className="text-sm text-gray-500">{restaurant.business_type} - {restaurant.domain}</p>
+                  <Badge variant={restaurant.is_active ? "default" : "secondary"}>
+                    {restaurant.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+                <div className="flex gap-2">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
                         onClick={() => {
-                          setSelectedAdminId(restaurant.admin_id);
-                          setShowPasswordDialog(true);
+                          setSelectedRestaurant(restaurant);
+                          setEditData(restaurant);
+                          setEditMode(false);
                         }}
                       >
-                        <RotateCcw className="h-4 w-4" />
+                        <Edit className="w-4 h-4 mr-1" />
+                        Manage
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDeleteRestaurant(restaurant.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {restaurants.length === 0 && (
-            <p className="text-center text-gray-500 py-8">No restaurants found</p>
-          )}
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Manage Restaurant</DialogTitle>
+                      </DialogHeader>
+                      {selectedRestaurant && (
+                        <div className="space-y-4">
+                          {!editMode ? (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <Label>Restaurant Name</Label>
+                                  <p className="font-medium">{selectedRestaurant.name}</p>
+                                </div>
+                                <div>
+                                  <Label>Business Type</Label>
+                                  <p className="font-medium">{selectedRestaurant.business_type}</p>
+                                </div>
+                                <div>
+                                  <Label>Email</Label>
+                                  <p className="font-medium">{selectedRestaurant.email}</p>
+                                </div>
+                                <div>
+                                  <Label>Phone</Label>
+                                  <p className="font-medium">{selectedRestaurant.phone}</p>
+                                </div>
+                                <div>
+                                  <Label>Domain</Label>
+                                  <p className="font-medium">{selectedRestaurant.domain}</p>
+                                </div>
+                                <div>
+                                  <Label>Status</Label>
+                                  <Badge variant={selectedRestaurant.is_active ? "default" : "secondary"}>
+                                    {selectedRestaurant.is_active ? "Active" : "Inactive"}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div>
+                                <Label>Address</Label>
+                                <p className="font-medium">{selectedRestaurant.address}</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button onClick={() => setEditMode(true)}>
+                                  <Edit className="w-4 h-4 mr-1" />
+                                  Edit Details
+                                </Button>
+                                <Button 
+                                  variant="outline"
+                                  onClick={() => setShowPasswordDialog(true)}
+                                >
+                                  <Key className="w-4 h-4 mr-1" />
+                                  Reset Password
+                                </Button>
+                                <Button 
+                                  variant="destructive"
+                                  onClick={() => handleDeleteRestaurant(selectedRestaurant.id)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-1" />
+                                  Delete
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <Label>Restaurant Name</Label>
+                                  <Input
+                                    value={editData.name || ''}
+                                    onChange={(e) => setEditData({...editData, name: e.target.value})}
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Business Type</Label>
+                                  <Select 
+                                    value={editData.business_type || ''} 
+                                    onValueChange={(value) => setEditData({...editData, business_type: value})}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="Restaurant">Restaurant</SelectItem>
+                                      <SelectItem value="Fast Food">Fast Food</SelectItem>
+                                      <SelectItem value="Cafe">Cafe</SelectItem>
+                                      <SelectItem value="Bakery">Bakery</SelectItem>
+                                      <SelectItem value="Food Truck">Food Truck</SelectItem>
+                                      <SelectItem value="Bar">Bar</SelectItem>
+                                      <SelectItem value="Other">Other</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Label>Email</Label>
+                                  <Input
+                                    value={editData.email || ''}
+                                    onChange={(e) => setEditData({...editData, email: e.target.value})}
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Phone</Label>
+                                  <Input
+                                    value={editData.phone || ''}
+                                    onChange={(e) => setEditData({...editData, phone: e.target.value})}
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Domain</Label>
+                                  <Input
+                                    value={editData.domain || ''}
+                                    onChange={(e) => setEditData({...editData, domain: e.target.value})}
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Status</Label>
+                                  <Select 
+                                    value={editData.is_active ? 'active' : 'inactive'} 
+                                    onValueChange={(value) => setEditData({...editData, is_active: value === 'active'})}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="active">Active</SelectItem>
+                                      <SelectItem value="inactive">Inactive</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <div>
+                                <Label>Address</Label>
+                                <Textarea
+                                  value={editData.address || ''}
+                                  onChange={(e) => setEditData({...editData, address: e.target.value})}
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <Button onClick={handleUpdateRestaurant}>
+                                  Save Changes
+                                </Button>
+                                <Button variant="outline" onClick={() => setEditMode(false)}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+            ))}
+            
+            {restaurants.length === 0 && (
+              <p className="text-gray-500 text-center py-8">No approved restaurants</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Edit Restaurant Dialog */}
-      {editingRestaurant && (
-        <Dialog open={true} onOpenChange={() => setEditingRestaurant(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Restaurant</DialogTitle>
-              <DialogDescription>Update restaurant information</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">Restaurant Name</Label>
-                <Input
-                  id="name"
-                  value={editingRestaurant.name}
-                  onChange={(e) => setEditingRestaurant({...editingRestaurant, name: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="domain">Domain</Label>
-                <Input
-                  id="domain"
-                  value={editingRestaurant.domain}
-                  onChange={(e) => setEditingRestaurant({...editingRestaurant, domain: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  value={editingRestaurant.email}
-                  onChange={(e) => setEditingRestaurant({...editingRestaurant, email: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  value={editingRestaurant.phone}
-                  onChange={(e) => setEditingRestaurant({...editingRestaurant, phone: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="address">Address</Label>
-                <Input
-                  id="address"
-                  value={editingRestaurant.address}
-                  onChange={(e) => setEditingRestaurant({...editingRestaurant, address: e.target.value})}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={() => handleUpdateRestaurant(editingRestaurant)}>
-                  Update Restaurant
-                </Button>
-                <Button variant="outline" onClick={() => setEditingRestaurant(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Reset Password Dialog */}
+      {/* Password Reset Dialog */}
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reset Admin Password</DialogTitle>
-            <DialogDescription>Enter a new password for the restaurant admin</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="newPassword">New Password</Label>
+              <Label>New Password</Label>
               <Input
-                id="newPassword"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -507,86 +544,8 @@ export const RestaurantRequestsManager = () => {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Login Credentials Dialog */}
-      <Dialog open={showCredentialsDialog} onOpenChange={setShowCredentialsDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Restaurant Approved Successfully!</DialogTitle>
-            <DialogDescription>Login credentials for the restaurant admin</DialogDescription>
-          </DialogHeader>
-          {approvalResult && (
-            <div className="space-y-4">
-              <div className="bg-green-50 p-4 rounded-lg space-y-3">
-                <div>
-                  <Label className="font-semibold">Email:</Label>
-                  <div className="flex items-center gap-2">
-                    <Input 
-                      value={approvalResult.loginCredentials?.email || ''} 
-                      readOnly 
-                      className="bg-white"
-                    />
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => copyToClipboard(approvalResult.loginCredentials?.email || '')}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <Label className="font-semibold">Password:</Label>
-                  <div className="flex items-center gap-2">
-                    <Input 
-                      value={approvalResult.defaultPassword || ''} 
-                      readOnly 
-                      className="bg-white"
-                    />
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => copyToClipboard(approvalResult.defaultPassword || '')}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <Label className="font-semibold">Domain:</Label>
-                  <div className="flex items-center gap-2">
-                    <Input 
-                      value={approvalResult.loginCredentials?.domain || ''} 
-                      readOnly 
-                      className="bg-white"
-                    />
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => copyToClipboard(approvalResult.loginCredentials?.domain || '')}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              <div className="text-sm text-gray-600">
-                <p>The restaurant admin can now login using these credentials.</p>
-                <p>They should change their password after first login.</p>
-              </div>
-              <Button 
-                onClick={() => {
-                  setShowCredentialsDialog(false);
-                  setApprovalResult(null);
-                }}
-                className="w-full"
-              >
-                Done
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
+
+export default RestaurantRequestsManager;

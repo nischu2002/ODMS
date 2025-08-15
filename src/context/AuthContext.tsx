@@ -168,7 +168,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: `Domain "${domain}" already requested. Please choose a different restaurant name.` };
       }
 
-      // Create a restaurant request instead of directly creating the restaurant
+      // Create a restaurant request with the user's password
       const { error: requestError } = await supabase
         .from('restaurant_requests')
         .insert({
@@ -179,6 +179,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           phone: data.phone,
           address: data.address,
           domain: domain,
+          password: data.password, // Store the user's requested password
           status: 'pending'
         });
 

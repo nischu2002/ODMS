@@ -1,277 +1,199 @@
+
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../components/ui/form';
-import { Loader2, Store, ArrowLeft } from 'lucide-react';
-import { useToast } from '../hooks/use-toast';
-import { useForm } from 'react-hook-form';
-import { useAuth } from '../context/AuthContext';
-import { RestaurantRegistration } from '../types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/context/AuthContext';
+import { useNavigate, Link } from 'react-router-dom';
+import { toast } from 'sonner';
+import { ArrowLeft } from 'lucide-react';
 
-export default function RestaurantSignup() {
-  const [isLoading, setIsLoading] = useState(false);
+const RestaurantSignup = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { registerRestaurant } = useAuth();
-
-  const form = useForm<RestaurantRegistration>({
-    defaultValues: {
-      restaurantName: '',
-      businessType: '',
-      adminEmail: '',
-      adminPassword: '',
-      ownerName: '',
-      phone: '',
-      address: '',
-    },
+  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    restaurantName: '',
+    businessType: '',
+    ownerName: '',
+    adminEmail: '',
+    password: '', // Added password field
+    phone: '',
+    address: ''
   });
 
-  const businessTypes = [
-    'Fast Food',
-    'Fine Dining',
-    'Casual Dining',
-    'Cafe/Coffee Shop',
-    'Bakery',
-    'Pizza',
-    'Asian Cuisine',
-    'Italian Cuisine',
-    'Mexican Cuisine',
-    'Indian Cuisine',
-    'Desserts/Ice Cream',
-    'Healthy/Organic',
-    'Other'
-  ];
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.restaurantName || !formData.businessType || !formData.ownerName || 
+        !formData.adminEmail || !formData.password || !formData.phone || !formData.address) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
 
-  const generateDomain = (restaurantName: string) => {
-    return restaurantName
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-  };
-
-  const onSubmit = async (data: RestaurantRegistration) => {
     setIsLoading(true);
-
     try {
-      const result = await registerRestaurant(data);
+      const result = await registerRestaurant(formData);
       
       if (result.success) {
-        toast({
-          title: "Request Submitted!",
-          description: result.error || `Your restaurant request has been submitted for approval.`,
-        });
-
-        // Redirect to home page
+        toast.success('Restaurant registration request submitted successfully! Please wait for super admin approval.');
         navigate('/');
       } else {
-        toast({
-          title: "Registration Failed",
-          description: result.error || "Something went wrong. Please try again.",
-          variant: "destructive",
-        });
+        toast.error(result.error || 'Registration failed');
       }
     } catch (error) {
-      toast({
-        title: "Registration Failed",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
+      console.error('Registration error:', error);
+      toast.error('Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
-        <Card>
-          <CardHeader className="text-center">
-            <div className="flex items-center justify-center mb-4">
-              <Button
-                variant="ghost"
-                onClick={() => navigate('/')}
-                className="absolute left-4 top-4"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              <Store className="h-12 w-12 text-blue-600" />
-            </div>
-            <CardTitle className="text-3xl font-bold">Join ODMS</CardTitle>
-            <CardDescription className="text-lg">
-              Create your restaurant account and get your custom domain
-            </CardDescription>
+        <div className="flex items-center gap-4 mb-6">
+          <Link to="/">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Home
+            </Button>
+          </Link>
+        </div>
+
+        <Card className="shadow-2xl border-0">
+          <CardHeader className="text-center pb-8">
+            <CardTitle className="text-3xl font-bold text-gray-900">
+              Register Your Restaurant
+            </CardTitle>
+            <p className="text-gray-600 mt-2">
+              Join our ODMS platform and start managing your restaurant efficiently
+            </p>
           </CardHeader>
           
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="restaurantName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Restaurant Name *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter restaurant name" {...field} required />
-                        </FormControl>
-                        <FormMessage />
-                        {field.value && (
-                          <p className="text-sm text-blue-600">
-                            Domain: {generateDomain(field.value)}.odms.com
-                          </p>
-                        )}
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="businessType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Business Type *</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select business type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {businessTypes.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+          <CardContent className="px-8 pb-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="restaurantName">Restaurant Name *</Label>
+                  <Input
+                    id="restaurantName"
+                    value={formData.restaurantName}
+                    onChange={(e) => handleInputChange('restaurantName', e.target.value)}
+                    placeholder="Enter restaurant name"
+                    required
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="ownerName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Owner/Manager Name *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter full name" {...field} required />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="businessType">Business Type *</Label>
+                  <Select value={formData.businessType} onValueChange={(value) => handleInputChange('businessType', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select business type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Restaurant">Restaurant</SelectItem>
+                      <SelectItem value="Fast Food">Fast Food</SelectItem>
+                      <SelectItem value="Cafe">Cafe</SelectItem>
+                      <SelectItem value="Bakery">Bakery</SelectItem>
+                      <SelectItem value="Food Truck">Food Truck</SelectItem>
+                      <SelectItem value="Bar">Bar</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone Number *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter phone number" {...field} required />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                <div className="space-y-2">
+                  <Label htmlFor="ownerName">Owner Name *</Label>
+                  <Input
+                    id="ownerName"
+                    value={formData.ownerName}
+                    onChange={(e) => handleInputChange('ownerName', e.target.value)}
+                    placeholder="Enter owner full name"
+                    required
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Restaurant Address *</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Enter complete restaurant address" 
-                          {...field} 
-                          required 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                <div className="space-y-2">
+                  <Label htmlFor="adminEmail">Admin Email *</Label>
+                  <Input
+                    id="adminEmail"
+                    type="email"
+                    value={formData.adminEmail}
+                    onChange={(e) => handleInputChange('adminEmail', e.target.value)}
+                    placeholder="Enter admin email"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Admin Password *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    placeholder="Enter admin password"
+                    required
+                    minLength={8}
+                  />
+                  <p className="text-sm text-gray-500">Password must be at least 8 characters long</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    placeholder="Enter phone number"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="address">Address *</Label>
+                <Textarea
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) => handleInputChange('address', e.target.value)}
+                  placeholder="Enter complete restaurant address"
+                  required
+                  rows={3}
                 />
+              </div>
 
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-semibold mb-4">Admin Account Setup</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="adminEmail"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Admin Email *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="email" 
-                              placeholder="admin@restaurant.com" 
-                              {...field} 
-                              required 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="adminPassword"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Admin Password *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="password" 
-                              placeholder="Create secure password" 
-                              {...field} 
-                              required 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating Your Account...
-                    </>
-                  ) : (
-                    'Create Restaurant Account'
-                  )}
-                </Button>
-              </form>
-            </Form>
+              <Button 
+                type="submit" 
+                className="w-full h-12 text-lg font-semibold"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Submitting Request...' : 'Submit Registration Request'}
+              </Button>
+            </form>
 
             <div className="mt-6 text-center text-sm text-gray-600">
-              <p>Already have an account? 
-                <Button variant="link" onClick={() => navigate('/login')} className="p-0 ml-1">
-                  Sign in here
-                </Button>
-              </p>
+              Already have an account?{' '}
+              <Link to="/login" className="text-orange-600 hover:text-orange-700 font-medium">
+                Login here
+              </Link>
             </div>
           </CardContent>
         </Card>
       </div>
     </div>
   );
-}
+};
+
+export default RestaurantSignup;
