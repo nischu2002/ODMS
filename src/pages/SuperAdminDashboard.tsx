@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '../components/Layout/DashboardLayout';
@@ -37,7 +38,7 @@ import { Badge } from '../components/ui/badge';
 import { Switch } from '../components/ui/switch';
 import { TeamMemberCMS } from '../components/TeamMemberCMS';
 import { CMSManager } from '../components/CMSManager';
-import { RestaurantRequestsManager } from '../components/RestaurantRequestsManager';
+import RestaurantRequestsManager from '../components/RestaurantRequestsManager';
 import { SystemNotificationsManager } from '../components/SystemNotificationsManager';
 
 interface Restaurant {
