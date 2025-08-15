@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -9,8 +8,8 @@ import { Switch } from './ui/switch';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ModernNavbar } from './ModernNavbar';
-import { ModernFooter } from './ModernFooter';
+import ModernNavbar from './ModernNavbar';
+import ModernFooter from './ModernFooter';
 import { ArrowLeft, Plus, Edit, Trash2, User, Upload, AlertTriangle } from 'lucide-react';
 import {
   Dialog,

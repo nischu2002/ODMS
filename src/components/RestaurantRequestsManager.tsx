@@ -1,547 +1,551 @@
 
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { CheckCircle, XCircle, Eye, Edit, Trash2, Key } from 'lucide-react';
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Textarea } from './ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { useToast } from '../hooks/use-toast';
+import { supabase } from '../integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Plus, Edit, Trash2, Building, Eye, Mail, Phone, MapPin, Calendar, User, FileText } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 
 interface RestaurantRequest {
   id: string;
   restaurant_name: string;
-  business_type: string;
   owner_name: string;
   email: string;
   phone: string;
   address: string;
+  business_type: string;
   domain: string;
+  password: string;
+  notes?: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
-  notes?: string;
+  updated_at: string;
 }
 
-interface Restaurant {
-  id: string;
-  name: string;
-  domain: string;
-  email: string;
-  phone: string;
-  address: string;
-  business_type: string;
-  admin_id: string;
-  is_active: boolean;
-  created_at: string;
+interface RestaurantRequestsManagerProps {
+  onClose: () => void;
 }
 
-const RestaurantRequestsManager = () => {
-  const [requests, setRequests] = useState<RestaurantRequest[]>([]);
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [loading, setLoading] = useState(true);
+const RestaurantRequestsManager = ({ onClose }: RestaurantRequestsManagerProps) => {
   const [selectedRequest, setSelectedRequest] = useState<RestaurantRequest | null>(null);
-  const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
-  const [editMode, setEditMode] = useState(false);
-  const [editData, setEditData] = useState<any>({});
-  const [newPassword, setNewPassword] = useState('');
-  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
+  const [editFormData, setEditFormData] = useState<Partial<RestaurantRequest>>({});
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const fetchData = async () => {
-    try {
-      // Fetch pending requests
-      const { data: requestsData, error: requestsError } = await supabase
+  // Fetch restaurant requests
+  const { data: requests = [], isLoading } = useQuery({
+    queryKey: ['restaurant-requests'],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from('restaurant_requests')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (requestsError) throw requestsError;
-
-      // Fetch approved restaurants
-      const { data: restaurantsData, error: restaurantsError } = await supabase
-        .from('restaurants')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (restaurantsError) throw restaurantsError;
-
-      setRequests(requestsData || []);
-      setRestaurants(restaurantsData || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load data');
-    } finally {
-      setLoading(false);
+      if (error) throw error;
+      return data.map(item => ({
+        ...item,
+        status: item.status as 'pending' | 'approved' | 'rejected'
+      })) as RestaurantRequest[];
     }
-  };
+  });
 
-  const handleApprove = async (request: RestaurantRequest) => {
-    try {
-      const response = await fetch(`https://dpbpaonsyfodtteebszv.supabase.co/functions/v1/approve-restaurant`, {
+  // Approve restaurant mutation
+  const approveMutation = useMutation({
+    mutationFn: async (request: RestaurantRequest) => {
+      const response = await fetch('/api/approve-restaurant', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwYnBhb25zeWZvZHR0ZWVic3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MjEwNTEsImV4cCI6MjA2NTM5NzA1MX0.4h1ephRvY981xVUQfQx8GFz_G50KN68XFf8EnM_VgUo'}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: request.id,
-          requestData: request
-        }),
+          restaurantData: {
+            name: request.restaurant_name,
+            email: request.email,
+            phone: request.phone,
+            address: request.address,
+            domain: request.domain,
+            business_type: request.business_type
+          },
+          adminData: {
+            name: request.owner_name,
+            email: request.email,
+            password: request.password
+          }
+        })
       });
 
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success(`Restaurant approved successfully! Login credentials: Email: ${result.loginCredentials.email}, Password: ${result.loginCredentials.password}, Domain: ${result.loginCredentials.domain}`);
-        fetchData();
-      } else {
-        toast.error(result.error || 'Failed to approve restaurant');
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
       }
-    } catch (error) {
-      console.error('Error approving restaurant:', error);
-      toast.error('Failed to approve restaurant');
-    }
-  };
 
-  const handleReject = async (requestId: string) => {
-    try {
+      return response.json();
+    },
+    onSuccess: (data, request) => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['restaurants'] });
+      toast({ 
+        title: "Restaurant approved successfully",
+        description: `Admin login: ${request.email} / Password: ${request.password}`
+      });
+    },
+    onError: (error) => {
+      console.error('Error approving restaurant:', error);
+      toast({ title: "Error approving restaurant", variant: "destructive" });
+    }
+  });
+
+  // Reject restaurant mutation
+  const rejectMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('restaurant_requests')
         .update({ status: 'rejected' })
-        .eq('id', requestId);
+        .eq('id', id);
 
       if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant-requests'] });
+      toast({ title: "Restaurant request rejected" });
+    },
+    onError: (error) => {
+      console.error('Error rejecting restaurant:', error);
+      toast({ title: "Error rejecting restaurant", variant: "destructive" });
+    }
+  });
 
-      toast.success('Restaurant request rejected');
-      fetchData();
-    } catch (error) {
-      console.error('Error rejecting request:', error);
-      toast.error('Failed to reject request');
+  // Delete request mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('restaurant_requests')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant-requests'] });
+      toast({ title: "Restaurant request deleted" });
+    },
+    onError: (error) => {
+      console.error('Error deleting restaurant request:', error);
+      toast({ title: "Error deleting restaurant request", variant: "destructive" });
+    }
+  });
+
+  // Update request mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, ...data }: Partial<RestaurantRequest> & { id: string }) => {
+      const { error } = await supabase
+        .from('restaurant_requests')
+        .update(data)
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant-requests'] });
+      toast({ title: "Restaurant request updated successfully" });
+      setIsDialogOpen(false);
+      setSelectedRequest(null);
+      setEditFormData({});
+    },
+    onError: (error) => {
+      console.error('Error updating restaurant request:', error);
+      toast({ title: "Error updating restaurant request", variant: "destructive" });
+    }
+  });
+
+  const handleView = (request: RestaurantRequest) => {
+    setSelectedRequest(request);
+    setIsViewMode(true);
+    setIsDialogOpen(true);
+  };
+
+  const handleEdit = (request: RestaurantRequest) => {
+    setSelectedRequest(request);
+    setEditFormData(request);
+    setIsViewMode(false);
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this restaurant request?')) {
+      deleteMutation.mutate(id);
     }
   };
 
-  const handleUpdateRestaurant = async () => {
-    if (!selectedRestaurant) return;
-
-    try {
-      const response = await fetch(`https://dpbpaonsyfodtteebszv.supabase.co/functions/v1/approve-restaurant`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwYnBhb25zeWZvZHR0ZWVic3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MjEwNTEsImV4cCI6MjA2NTM5NzA1MX0.4h1ephRvY981xVUQfQx8GFz_G50KN68XFf8EnM_VgUo'}`,
-        },
-        body: JSON.stringify({
-          action: 'update_restaurant',
-          restaurantId: selectedRestaurant.id,
-          updates: editData
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success('Restaurant updated successfully');
-        setEditMode(false);
-        fetchData();
-      } else {
-        toast.error(result.error || 'Failed to update restaurant');
-      }
-    } catch (error) {
-      console.error('Error updating restaurant:', error);
-      toast.error('Failed to update restaurant');
+  const handleApprove = (request: RestaurantRequest) => {
+    if (window.confirm(`Are you sure you want to approve ${request.restaurant_name}?`)) {
+      approveMutation.mutate(request);
     }
   };
 
-  const handleDeleteRestaurant = async (restaurantId: string) => {
-    if (!confirm('Are you sure? This will delete the restaurant and ALL related data (users, orders, etc.)')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`https://dpbpaonsyfodtteebszv.supabase.co/functions/v1/approve-restaurant`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwYnBhb25zeWZvZHR0ZWVic3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MjEwNTEsImV4cCI6MjA2NTM5NzA1MX0.4h1ephRvY981xVUQfQx8GFz_G50KN68XFf8EnM_VgUo'}`,
-        },
-        body: JSON.stringify({
-          action: 'delete_restaurant',
-          restaurantId: restaurantId
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success('Restaurant and all related data deleted successfully');
-        fetchData();
-      } else {
-        toast.error(result.error || 'Failed to delete restaurant');
-      }
-    } catch (error) {
-      console.error('Error deleting restaurant:', error);
-      toast.error('Failed to delete restaurant');
+  const handleReject = (id: string) => {
+    if (window.confirm('Are you sure you want to reject this restaurant request?')) {
+      rejectMutation.mutate(id);
     }
   };
 
-  const handleResetPassword = async () => {
-    if (!selectedRestaurant || !newPassword) return;
-
-    try {
-      const response = await fetch(`https://dpbpaonsyfodtteebszv.supabase.co/functions/v1/approve-restaurant`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwYnBhb25zeWZvZHR0ZWVic3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MjEwNTEsImV4cCI6MjA2NTM5NzA1MX0.4h1ephRvY981xVUQfQx8GFz_G50KN68XFf8EnM_VgUo'}`,
-        },
-        body: JSON.stringify({
-          action: 'reset_password',
-          updates: {
-            admin_id: selectedRestaurant.admin_id,
-            new_password: newPassword
-          }
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success('Password reset successfully');
-        setShowPasswordDialog(false);
-        setNewPassword('');
-      } else {
-        toast.error(result.error || 'Failed to reset password');
-      }
-    } catch (error) {
-      console.error('Error resetting password:', error);
-      toast.error('Failed to reset password');
+  const handleUpdateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedRequest) {
+      updateMutation.mutate({ id: selectedRequest.id, ...editFormData });
     }
   };
 
-  if (loading) {
-    return <div className="p-6">Loading...</div>;
-  }
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved': return 'text-green-600 bg-green-100';
+      case 'rejected': return 'text-red-600 bg-red-100';
+      default: return 'text-yellow-600 bg-yellow-100';
+    }
+  };
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-bold">Restaurant Management</h1>
-      
-      {/* Pending Requests */}
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="flex items-center space-x-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Dashboard</span>
+          </Button>
+          <h1 className="text-3xl font-bold text-gray-900">Restaurant Requests</h1>
+        </div>
+      </div>
+
+      {/* Requests List */}
       <Card>
         <CardHeader>
-          <CardTitle>Pending Restaurant Requests</CardTitle>
+          <CardTitle>Restaurant Applications ({requests.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {requests.filter(r => r.status === 'pending').map((request) => (
-              <div key={request.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex-1">
-                  <h3 className="font-semibold">{request.restaurant_name}</h3>
-                  <p className="text-sm text-gray-600">{request.owner_name} - {request.email}</p>
-                  <p className="text-sm text-gray-500">{request.business_type} - {request.domain}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" onClick={() => setSelectedRequest(request)}>
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <DialogHeader>
-                        <DialogTitle>Restaurant Request Details</DialogTitle>
-                      </DialogHeader>
-                      {selectedRequest && (
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <Label>Restaurant Name</Label>
-                              <p className="font-medium">{selectedRequest.restaurant_name}</p>
-                            </div>
-                            <div>
-                              <Label>Business Type</Label>
-                              <p className="font-medium">{selectedRequest.business_type}</p>
-                            </div>
-                            <div>
-                              <Label>Owner Name</Label>
-                              <p className="font-medium">{selectedRequest.owner_name}</p>
-                            </div>
-                            <div>
-                              <Label>Email</Label>
-                              <p className="font-medium">{selectedRequest.email}</p>
-                            </div>
-                            <div>
-                              <Label>Phone</Label>
-                              <p className="font-medium">{selectedRequest.phone}</p>
-                            </div>
-                            <div>
-                              <Label>Domain</Label>
-                              <p className="font-medium">{selectedRequest.domain}</p>
-                            </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : requests.length > 0 ? (
+            <div className="space-y-4">
+              {requests.map((request) => (
+                <div key={request.id} className="border rounded-lg p-6 bg-white shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="text-xl font-bold text-gray-900">{request.restaurant_name}</h3>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
+                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="flex items-center space-x-2 text-gray-600">
+                          <User className="h-4 w-4" />
+                          <span>{request.owner_name}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-gray-600">
+                          <Mail className="h-4 w-4" />
+                          <span>{request.email}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-gray-600">
+                          <Phone className="h-4 w-4" />
+                          <span>{request.phone}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-gray-600">
+                          <MapPin className="h-4 w-4" />
+                          <span>{request.address}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-gray-600">
+                          <Building className="h-4 w-4" />
+                          <span>{request.business_type}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-gray-600">
+                          <Calendar className="h-4 w-4" />
+                          <span>{new Date(request.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      {request.notes && (
+                        <div className="mb-4">
+                          <div className="flex items-center space-x-2 text-gray-600 mb-1">
+                            <FileText className="h-4 w-4" />
+                            <span className="font-medium">Notes:</span>
                           </div>
-                          <div>
-                            <Label>Address</Label>
-                            <p className="font-medium">{selectedRequest.address}</p>
-                          </div>
+                          <p className="text-gray-700 text-sm pl-6">{request.notes}</p>
                         </div>
                       )}
-                    </DialogContent>
-                  </Dialog>
-                  
-                  <Button 
-                    size="sm" 
-                    onClick={() => handleApprove(request)}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <CheckCircle className="w-4 h-4 mr-1" />
-                    Approve
-                  </Button>
-                  
-                  <Button 
-                    size="sm" 
-                    variant="destructive"
-                    onClick={() => handleReject(request.id)}
-                  >
-                    <XCircle className="w-4 h-4 mr-1" />
-                    Reject
-                  </Button>
-                </div>
-              </div>
-            ))}
-            
-            {requests.filter(r => r.status === 'pending').length === 0 && (
-              <p className="text-gray-500 text-center py-8">No pending requests</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                    </div>
 
-      {/* Approved Restaurants */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Approved Restaurants</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {restaurants.map((restaurant) => (
-              <div key={restaurant.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex-1">
-                  <h3 className="font-semibold">{restaurant.name}</h3>
-                  <p className="text-sm text-gray-600">{restaurant.email} - {restaurant.phone}</p>
-                  <p className="text-sm text-gray-500">{restaurant.business_type} - {restaurant.domain}</p>
-                  <Badge variant={restaurant.is_active ? "default" : "secondary"}>
-                    {restaurant.is_active ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-                <div className="flex gap-2">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => {
-                          setSelectedRestaurant(restaurant);
-                          setEditData(restaurant);
-                          setEditMode(false);
-                        }}
+                    <div className="flex space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleView(request)}
                       >
-                        <Edit className="w-4 h-4 mr-1" />
-                        Manage
+                        <Eye className="h-3 w-3" />
                       </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <DialogHeader>
-                        <DialogTitle>Manage Restaurant</DialogTitle>
-                      </DialogHeader>
-                      {selectedRestaurant && (
-                        <div className="space-y-4">
-                          {!editMode ? (
-                            <div className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <Label>Restaurant Name</Label>
-                                  <p className="font-medium">{selectedRestaurant.name}</p>
-                                </div>
-                                <div>
-                                  <Label>Business Type</Label>
-                                  <p className="font-medium">{selectedRestaurant.business_type}</p>
-                                </div>
-                                <div>
-                                  <Label>Email</Label>
-                                  <p className="font-medium">{selectedRestaurant.email}</p>
-                                </div>
-                                <div>
-                                  <Label>Phone</Label>
-                                  <p className="font-medium">{selectedRestaurant.phone}</p>
-                                </div>
-                                <div>
-                                  <Label>Domain</Label>
-                                  <p className="font-medium">{selectedRestaurant.domain}</p>
-                                </div>
-                                <div>
-                                  <Label>Status</Label>
-                                  <Badge variant={selectedRestaurant.is_active ? "default" : "secondary"}>
-                                    {selectedRestaurant.is_active ? "Active" : "Inactive"}
-                                  </Badge>
-                                </div>
-                              </div>
-                              <div>
-                                <Label>Address</Label>
-                                <p className="font-medium">{selectedRestaurant.address}</p>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button onClick={() => setEditMode(true)}>
-                                  <Edit className="w-4 h-4 mr-1" />
-                                  Edit Details
-                                </Button>
-                                <Button 
-                                  variant="outline"
-                                  onClick={() => setShowPasswordDialog(true)}
-                                >
-                                  <Key className="w-4 h-4 mr-1" />
-                                  Reset Password
-                                </Button>
-                                <Button 
-                                  variant="destructive"
-                                  onClick={() => handleDeleteRestaurant(selectedRestaurant.id)}
-                                >
-                                  <Trash2 className="w-4 h-4 mr-1" />
-                                  Delete
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <Label>Restaurant Name</Label>
-                                  <Input
-                                    value={editData.name || ''}
-                                    onChange={(e) => setEditData({...editData, name: e.target.value})}
-                                  />
-                                </div>
-                                <div>
-                                  <Label>Business Type</Label>
-                                  <Select 
-                                    value={editData.business_type || ''} 
-                                    onValueChange={(value) => setEditData({...editData, business_type: value})}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="Restaurant">Restaurant</SelectItem>
-                                      <SelectItem value="Fast Food">Fast Food</SelectItem>
-                                      <SelectItem value="Cafe">Cafe</SelectItem>
-                                      <SelectItem value="Bakery">Bakery</SelectItem>
-                                      <SelectItem value="Food Truck">Food Truck</SelectItem>
-                                      <SelectItem value="Bar">Bar</SelectItem>
-                                      <SelectItem value="Other">Other</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div>
-                                  <Label>Email</Label>
-                                  <Input
-                                    value={editData.email || ''}
-                                    onChange={(e) => setEditData({...editData, email: e.target.value})}
-                                  />
-                                </div>
-                                <div>
-                                  <Label>Phone</Label>
-                                  <Input
-                                    value={editData.phone || ''}
-                                    onChange={(e) => setEditData({...editData, phone: e.target.value})}
-                                  />
-                                </div>
-                                <div>
-                                  <Label>Domain</Label>
-                                  <Input
-                                    value={editData.domain || ''}
-                                    onChange={(e) => setEditData({...editData, domain: e.target.value})}
-                                  />
-                                </div>
-                                <div>
-                                  <Label>Status</Label>
-                                  <Select 
-                                    value={editData.is_active ? 'active' : 'inactive'} 
-                                    onValueChange={(value) => setEditData({...editData, is_active: value === 'active'})}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="active">Active</SelectItem>
-                                      <SelectItem value="inactive">Inactive</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-                              <div>
-                                <Label>Address</Label>
-                                <Textarea
-                                  value={editData.address || ''}
-                                  onChange={(e) => setEditData({...editData, address: e.target.value})}
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <Button onClick={handleUpdateRestaurant}>
-                                  Save Changes
-                                </Button>
-                                <Button variant="outline" onClick={() => setEditMode(false)}>
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEdit(request)}
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDelete(request.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                      {request.status === 'pending' && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => handleApprove(request)}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            disabled={approveMutation.isPending}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleReject(request.id)}
+                            className="text-red-600 hover:text-red-700"
+                            disabled={rejectMutation.isPending}
+                          >
+                            Reject
+                          </Button>
+                        </>
                       )}
-                    </DialogContent>
-                  </Dialog>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-            
-            {restaurants.length === 0 && (
-              <p className="text-gray-500 text-center py-8">No approved restaurants</p>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <Building className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-600 text-lg">No restaurant requests found</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Password Reset Dialog */}
-      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-        <DialogContent>
+      {/* View/Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Reset Admin Password</DialogTitle>
+            <DialogTitle>
+              {isViewMode ? 'Restaurant Request Details' : 'Edit Restaurant Request'}
+            </DialogTitle>
+            <DialogDescription>
+              {isViewMode ? 'View restaurant application details' : 'Update restaurant request information'}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>New Password</Label>
-              <Input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password"
-              />
+
+          {selectedRequest && (
+            <div className="space-y-6">
+              {isViewMode ? (
+                // View Mode
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="font-medium">Restaurant Name</Label>
+                      <p className="text-gray-900">{selectedRequest.restaurant_name}</p>
+                    </div>
+                    <div>
+                      <Label className="font-medium">Owner Name</Label>
+                      <p className="text-gray-900">{selectedRequest.owner_name}</p>
+                    </div>
+                    <div>
+                      <Label className="font-medium">Email</Label>
+                      <p className="text-gray-900">{selectedRequest.email}</p>
+                    </div>
+                    <div>
+                      <Label className="font-medium">Phone</Label>
+                      <p className="text-gray-900">{selectedRequest.phone}</p>
+                    </div>
+                    <div>
+                      <Label className="font-medium">Business Type</Label>
+                      <p className="text-gray-900">{selectedRequest.business_type}</p>
+                    </div>
+                    <div>
+                      <Label className="font-medium">Domain</Label>
+                      <p className="text-gray-900">{selectedRequest.domain}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="font-medium">Address</Label>
+                    <p className="text-gray-900">{selectedRequest.address}</p>
+                  </div>
+                  {selectedRequest.notes && (
+                    <div>
+                      <Label className="font-medium">Notes</Label>
+                      <p className="text-gray-900">{selectedRequest.notes}</p>
+                    </div>
+                  )}
+                  <div>
+                    <Label className="font-medium">Status</Label>
+                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedRequest.status)}`}>
+                      {selectedRequest.status.charAt(0).toUpperCase() + selectedRequest.status.slice(1)}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                // Edit Mode
+                <form onSubmit={handleUpdateSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="restaurant_name">Restaurant Name *</Label>
+                      <Input
+                        id="restaurant_name"
+                        value={editFormData.restaurant_name || ''}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, restaurant_name: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="owner_name">Owner Name *</Label>
+                      <Input
+                        id="owner_name"
+                        value={editFormData.owner_name || ''}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, owner_name: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="email">Email *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={editFormData.email || ''}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="phone">Phone *</Label>
+                      <Input
+                        id="phone"
+                        value={editFormData.phone || ''}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="business_type">Business Type *</Label>
+                      <Input
+                        id="business_type"
+                        value={editFormData.business_type || ''}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, business_type: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="domain">Domain *</Label>
+                      <Input
+                        id="domain"
+                        value={editFormData.domain || ''}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, domain: e.target.value }))}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="address">Address *</Label>
+                    <Input
+                      id="address"
+                      value={editFormData.address || ''}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, address: e.target.value }))}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="password">Password *</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={editFormData.password || ''}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, password: e.target.value }))}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="notes">Notes</Label>
+                    <Textarea
+                      id="notes"
+                      value={editFormData.notes || ''}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, notes: e.target.value }))}
+                      rows={3}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="status">Status *</Label>
+                    <Select
+                      value={editFormData.status || 'pending'}
+                      onValueChange={(value: 'pending' | 'approved' | 'rejected') => 
+                        setEditFormData(prev => ({ ...prev, status: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <DialogFooter>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit"
+                      disabled={updateMutation.isPending}
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                    >
+                      Update Request
+                    </Button>
+                  </DialogFooter>
+                </form>
+              )}
             </div>
-            <div className="flex gap-2">
-              <Button onClick={handleResetPassword} disabled={!newPassword}>
-                Reset Password
-              </Button>
-              <Button variant="outline" onClick={() => setShowPasswordDialog(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
