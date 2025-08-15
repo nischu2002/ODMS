@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -72,10 +71,18 @@ export const StaffManagement = () => {
     enabled: !!restaurant?.id
   });
 
-  // Create staff mutation - Fixed to prevent admin logout
+  // Create staff mutation - Fixed to use proper edge function
   const createStaffMutation = useMutation({
     mutationFn: async (staffData: typeof newStaff) => {
       if (!restaurant?.id) throw new Error('No restaurant selected');
+
+      console.log('Creating staff with data:', {
+        email: staffData.email,
+        name: staffData.name,
+        role: staffData.role,
+        phone: staffData.phone,
+        restaurant_id: restaurant.id
+      });
 
       // Use the edge function to create user account with admin privileges
       const { data, error } = await supabase.functions.invoke('create-user', {
@@ -92,6 +99,10 @@ export const StaffManagement = () => {
       if (error) {
         console.error('Edge function error:', error);
         throw new Error(error.message || 'Failed to create staff member');
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to create staff member');
       }
 
       return data;

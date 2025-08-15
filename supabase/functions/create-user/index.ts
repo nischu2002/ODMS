@@ -21,6 +21,20 @@ serve(async (req) => {
 
     const { email, password, name, role, phone, restaurant_id } = await req.json()
 
+    console.log('Creating user with data:', { email, name, role, restaurant_id })
+
+    if (!email || !password || !name || !role || !restaurant_id) {
+      throw new Error('Missing required fields: email, password, name, role, restaurant_id')
+    }
+
+    // Check if user already exists
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
+    const existingUser = existingUsers.users.find(u => u.email === email)
+
+    if (existingUser) {
+      throw new Error('User with this email already exists')
+    }
+
     // Create the auth user
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -33,8 +47,15 @@ serve(async (req) => {
     })
 
     if (authError) {
-      throw authError
+      console.error('Auth creation error:', authError)
+      throw new Error(`Failed to create auth user: ${authError.message}`)
     }
+
+    if (!authUser.user) {
+      throw new Error('Auth user creation returned no user data')
+    }
+
+    console.log('Auth user created successfully:', authUser.user.id)
 
     // Create the user profile in the users table
     const { error: userError } = await supabaseAdmin
@@ -45,16 +66,36 @@ serve(async (req) => {
         email,
         name,
         role,
-        phone
+        phone: phone || null,
+        is_active: true
       })
 
     if (userError) {
       console.error('Error creating user profile:', userError)
-      throw userError
+      
+      // If profile creation fails, clean up the auth user
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
+      } catch (cleanupError) {
+        console.error('Error cleaning up auth user:', cleanupError)
+      }
+      
+      throw new Error(`Failed to create user profile: ${userError.message}`)
     }
 
+    console.log('User profile created successfully')
+
     return new Response(
-      JSON.stringify({ success: true, user: authUser }),
+      JSON.stringify({ 
+        success: true, 
+        user: {
+          id: authUser.user.id,
+          email: authUser.user.email,
+          name,
+          role
+        },
+        message: 'User created successfully'
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
@@ -64,7 +105,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error creating user:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: 'Check function logs for more information'
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
