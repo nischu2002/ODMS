@@ -9,32 +9,32 @@ import ModernFooter from '@/components/ModernFooter';
 const Index = () => {
   const features = [
     {
-      icon: <Users className="h-8 w-8 text-orange-600" />,
+      icon: <Users className="h-8 w-8 text-blue-600" />,
       title: "Staff Management",
       description: "Efficiently manage your restaurant staff with role-based access control and activity tracking."
     },
     {
-      icon: <Truck className="h-8 w-8 text-orange-600" />,
+      icon: <Truck className="h-8 w-8 text-blue-600" />,
       title: "Delivery Tracking",
       description: "Real-time GPS tracking for delivery riders with automated customer notifications."
     },
     {
-      icon: <BarChart3 className="h-8 w-8 text-orange-600" />,
+      icon: <BarChart3 className="h-8 w-8 text-blue-600" />,
       title: "Analytics Dashboard",
       description: "Comprehensive analytics to track orders, revenue, and performance metrics."
     },
     {
-      icon: <Clock className="h-8 w-8 text-orange-600" />,
+      icon: <Clock className="h-8 w-8 text-blue-600" />,
       title: "Order Management",
       description: "Streamlined order processing from kitchen to customer with status updates."
     },
     {
-      icon: <Shield className="h-8 w-8 text-orange-600" />,
+      icon: <Shield className="h-8 w-8 text-blue-600" />,
       title: "Secure System",
       description: "Enterprise-grade security with encrypted data and secure authentication."
     },
     {
-      icon: <Headphones className="h-8 w-8 text-orange-600" />,
+      icon: <Headphones className="h-8 w-8 text-blue-600" />,
       title: "24/7 Support",
       description: "Round-the-clock customer support to help you manage your restaurant operations."
     }
@@ -52,12 +52,12 @@ const Index = () => {
       <ModernNavbar />
       
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-orange-50 to-red-50 py-20">
+      <section className="relative bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
               Streamline Your Restaurant
-              <span className="text-orange-600"> Operations</span>
+              <span className="text-blue-600"> Operations</span>
             </h1>
             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
               Complete Order Delivery Management System (ODMS) designed to optimize your restaurant's workflow, 
@@ -65,7 +65,7 @@ const Index = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/restaurant-signup">
-                <Button size="lg" className="bg-orange-600 hover:bg-orange-700 text-lg px-8 py-3">
+                <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-3">
                   Get Started Free
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
@@ -83,10 +83,10 @@ const Index = () => {
       {/* Stats Section */}
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {stats.map((stat, index) => (
               <div key={index} className="space-y-2">
-                <div className="text-3xl md:text-4xl font-bold text-orange-600">{stat.number}</div>
+                <div className="text-3xl md:text-4xl font-bold text-blue-600">{stat.number}</div>
                 <div className="text-gray-600 font-medium">{stat.label}</div>
               </div>
             ))}
@@ -148,7 +148,7 @@ const Index = () => {
                 ))}
               </div>
               <Link to="/restaurant-signup">
-                <Button size="lg" className="bg-orange-600 hover:bg-orange-700">
+                <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
                   Start Your Free Trial
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
@@ -166,12 +166,12 @@ const Index = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-orange-600">
+      <section className="py-20 bg-blue-600">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
             Ready to Transform Your Restaurant Operations?
           </h2>
-          <p className="text-xl text-orange-100 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
             Join hundreds of restaurants already using ODMS to streamline their operations and increase profitability.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -182,7 +182,7 @@ const Index = () => {
               </Button>
             </Link>
             <Link to="/about">
-              <Button size="lg" variant="outline" className="text-lg px-8 py-3 border-white text-white hover:bg-white hover:text-orange-600">
+              <Button size="lg" variant="outline" className="text-lg px-8 py-3 border-white text-white hover:bg-white hover:text-blue-600">
                 Learn More
               </Button>
             </Link>

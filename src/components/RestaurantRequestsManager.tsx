@@ -68,33 +68,28 @@ const RestaurantRequestsManager = ({ onClose }: RestaurantRequestsManagerProps) 
   // Approve restaurant mutation
   const approveMutation = useMutation({
     mutationFn: async (request: RestaurantRequest) => {
-      const response = await fetch('/api/approve-restaurant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('approve-restaurant', {
+        body: {
           requestId: request.id,
-          restaurantData: {
-            name: request.restaurant_name,
+          requestData: {
+            restaurant_name: request.restaurant_name,
+            owner_name: request.owner_name,
             email: request.email,
             phone: request.phone,
             address: request.address,
             domain: request.domain,
-            business_type: request.business_type
-          },
-          adminData: {
-            name: request.owner_name,
-            email: request.email,
+            business_type: request.business_type,
             password: request.password
           }
-        })
+        }
       });
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
+      if (error) {
+        console.error('Error calling approve-restaurant function:', error);
+        throw new Error(error.message || 'Failed to approve restaurant');
       }
 
-      return response.json();
+      return data;
     },
     onSuccess: (data, request) => {
       queryClient.invalidateQueries({ queryKey: ['restaurant-requests'] });

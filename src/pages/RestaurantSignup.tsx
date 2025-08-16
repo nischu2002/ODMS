@@ -34,6 +34,30 @@ const RestaurantSignup = () => {
       return;
     }
 
+    // Enhanced email validation
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const commonInvalidEmails = [
+      /^.+@abc$/i,
+      /^.+@abc\.$/i,
+      /^.+@test$/i,
+      /^.+@test\.$/i,
+      /^.+@example$/i,
+      /^.+@example\.$/i,
+      /^abc@.*$/i,
+      /^test@.*$/i,
+      /^admin@.*$/i
+    ];
+
+    if (!emailRegex.test(formData.adminEmail)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    if (commonInvalidEmails.some(pattern => pattern.test(formData.adminEmail))) {
+      toast.error('Please use a valid, real email address');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const result = await registerRestaurant(formData);
@@ -60,7 +84,7 @@ const RestaurantSignup = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         <div className="flex items-center gap-4 mb-6">
           <Link to="/">
@@ -185,7 +209,7 @@ const RestaurantSignup = () => {
 
             <div className="mt-6 text-center text-sm text-gray-600">
               Already have an account?{' '}
-              <Link to="/login" className="text-orange-600 hover:text-orange-700 font-medium">
+              <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
                 Login here
               </Link>
             </div>
