@@ -158,7 +158,20 @@ serve(async (req) => {
 
     if (action === 'delete_restaurant') {
       console.log('Deleting restaurant:', restaurantId)
-      // First delete associated users
+      
+      // Get the restaurant and its admin_id first
+      const { data: restaurant, error: fetchError } = await supabaseAdmin
+        .from('restaurants')
+        .select('admin_id')
+        .eq('id', restaurantId)
+        .single()
+      
+      if (fetchError) {
+        console.error('Error fetching restaurant:', fetchError)
+        throw fetchError
+      }
+      
+      // Delete associated users first
       const { error: deleteUsersError } = await supabaseAdmin
         .from('users')
         .delete()
@@ -168,7 +181,7 @@ serve(async (req) => {
         console.error('Error deleting users:', deleteUsersError)
       }
 
-      // Delete restaurant
+      // Delete restaurant (this will trigger cascade deletion of other related data)
       const { error: deleteError } = await supabaseAdmin
         .from('restaurants')
         .delete()
@@ -177,6 +190,22 @@ serve(async (req) => {
       if (deleteError) {
         console.error('Error deleting restaurant:', deleteError)
         throw deleteError
+      }
+
+      // Delete the auth user if admin_id exists
+      if (restaurant.admin_id) {
+        try {
+          const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(
+            restaurant.admin_id
+          )
+          if (deleteAuthError) {
+            console.error('Error deleting auth user:', deleteAuthError)
+            // Don't throw here as restaurant is already deleted
+          }
+        } catch (authDeleteError) {
+          console.error('Auth user deletion failed:', authDeleteError)
+          // Continue since restaurant is already deleted
+        }
       }
 
       return new Response(

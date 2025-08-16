@@ -21,9 +21,9 @@ export const ModernNavbar = () => {
           {/* Logo */}
           <div className="flex items-center space-x-3">
             <img 
-              src="https://images.unsplash.com/photo-1577308856961-8e0ec9b5f1f4?w=48&h=48&fit=crop&crop=center" 
+              src="/lovable-uploads/13e05a60-a9c2-46a1-a63d-eab5de4bc8dd.png" 
               alt="ODMS Logo" 
-              className="w-12 h-12 rounded-xl"
+              className="w-12 h-12 object-contain"
             />
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">

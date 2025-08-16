@@ -378,56 +378,74 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (email: string, password: string, domain: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      console.log('Attempting login with:', { email, domain });
+      
       const { data: restaurantData, error: domainError } = await supabase
         .from('restaurants')
-        .select('id')
+        .select('id, is_active')
         .eq('domain', domain)
         .maybeSingle();
 
       if (domainError) {
+        console.error('Domain lookup error:', domainError);
         return { success: false, error: 'Database error during login. Please try again.' };
       }
 
       if (!restaurantData) {
+        console.error('Restaurant not found for domain:', domain);
         return { success: false, error: `Domain "${domain}" not found. Please check your restaurant domain.` };
       }
 
+      if (!restaurantData.is_active) {
+        return { success: false, error: 'Restaurant is not active. Please contact support.' };
+      }
+
+      console.log('Restaurant found, attempting auth...');
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
       if (authError) {
+        console.error('Auth error:', authError);
         if (authError.message.includes('Invalid login credentials')) {
           return { success: false, error: 'Invalid email or password. Please check your credentials.' };
         }
-        if (!authError.message.includes('email_not_confirmed') && !authError.message.includes('Email not confirmed')) {
-          return { success: false, error: authError.message };
-        }
+        return { success: false, error: authError.message };
       }
 
       if (!authData.user) {
+        console.error('No user returned from auth');
         return { success: false, error: 'Authentication failed. Please try again.' };
       }
 
+      console.log('Auth successful, checking user profile...');
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('restaurant_id')
+        .select('restaurant_id, is_active, role')
         .eq('id', authData.user.id)
         .maybeSingle();
 
       if (userError) {
+        console.error('User lookup error:', userError);
         return { success: false, error: 'User verification failed. Please contact support.' };
       }
 
       if (!userData) {
+        console.error('User profile not found');
         return { success: false, error: 'User profile not found. Please contact support.' };
       }
 
+      if (!userData.is_active) {
+        return { success: false, error: 'Your account is not active. Please contact your restaurant admin.' };
+      }
+
       if (userData.restaurant_id !== restaurantData.id) {
+        console.error('Restaurant mismatch:', { userRestaurant: userData.restaurant_id, domainRestaurant: restaurantData.id });
         return { success: false, error: `This account is not associated with domain "${domain}". Please check your domain.` };
       }
 
+      console.log('Login successful for user:', userData.role);
       return { success: true };
     } catch (error) {
       console.error('Login failed:', error);

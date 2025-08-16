@@ -94,6 +94,13 @@ export default function Index() {
         <div className="absolute inset-0 bg-grid-slate-100 [background-size:20px_20px] opacity-20"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
+            <div className="flex justify-center mb-8">
+              <img 
+                src="/lovable-uploads/13e05a60-a9c2-46a1-a63d-eab5de4bc8dd.png" 
+                alt="ODMS Logo" 
+                className="h-32 w-32 object-contain"
+              />
+            </div>
             <div className="inline-flex items-center rounded-full px-4 py-1.5 text-sm font-medium bg-blue-100 text-blue-700 mb-8">
               <span>🚀 Revolutionizing Restaurant Operations</span>
             </div>
