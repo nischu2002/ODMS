@@ -24,6 +24,116 @@ serve(async (req) => {
     console.log('Received request:', { action, requestId, restaurantId })
 
     // Handle different actions
+    if (action === 'create_restaurant') {
+      console.log('Creating new restaurant directly:', requestData)
+      
+      // Check if user already exists by email
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
+      let existingUser = existingUsers.users.find(u => u.email === requestData.email)
+
+      let authUser;
+      const userPassword = requestData.password || 'TempPass123!'
+
+      if (existingUser) {
+        console.log('User already exists, updating password:', existingUser.id)
+        // Update existing user's password
+        const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+          existingUser.id,
+          { 
+            password: userPassword,
+            user_metadata: {
+              name: requestData.owner_name,
+              role: 'admin'
+            }
+          }
+        )
+
+        if (updateError) {
+          console.error('Error updating existing user:', updateError)
+          throw updateError
+        }
+        authUser = updatedUser.user
+      } else {
+        console.log('Creating new user for direct restaurant creation')
+        // Create new auth user
+        const { data: newAuthUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+          email: requestData.email,
+          password: userPassword,
+          user_metadata: {
+            name: requestData.owner_name,
+            role: 'admin'
+          },
+          email_confirm: true
+        })
+
+        if (authError) {
+          console.error('Error creating auth user:', authError)
+          throw authError
+        }
+        authUser = newAuthUser.user
+      }
+
+      if (!authUser) {
+        throw new Error('Failed to create or update auth user')
+      }
+
+      console.log('Auth user ready:', authUser.id)
+
+      // Create the restaurant
+      const { data: restaurantData, error: restaurantError } = await supabaseAdmin
+        .from('restaurants')
+        .insert({
+          name: requestData.restaurant_name,
+          domain: requestData.domain,
+          address: requestData.address,
+          phone: requestData.phone,
+          email: requestData.email,
+          admin_id: authUser.id,
+          business_type: requestData.business_type
+        })
+        .select()
+        .single()
+
+      if (restaurantError) {
+        console.error('Error creating restaurant:', restaurantError)
+        throw restaurantError
+      }
+
+      console.log('Restaurant created:', restaurantData.id)
+
+      // Create the user profile
+      const { error: userError } = await supabaseAdmin
+        .from('users')
+        .upsert({
+          id: authUser.id,
+          restaurant_id: restaurantData.id,
+          email: requestData.email,
+          name: requestData.owner_name,
+          role: 'admin',
+          phone: requestData.phone,
+          is_active: true
+        })
+
+      if (userError) {
+        console.error('Error creating user profile:', userError)
+        throw userError
+      }
+
+      console.log('User profile created successfully')
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          restaurant: restaurantData,
+          message: `Restaurant ${requestData.restaurant_name} created successfully!`
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        },
+      )
+    }
+
     if (action === 'update_restaurant') {
       console.log('Updating restaurant with:', updates)
       // Update restaurant details
@@ -112,7 +222,7 @@ serve(async (req) => {
     let existingUser = existingUsers.users.find(u => u.email === requestData.email)
 
     let authUser;
-    const defaultPassword = 'Restaurant123!'
+    const userPassword = requestData.password || 'TempPass123!'
 
     if (existingUser) {
       console.log('User already exists, updating password:', existingUser.id)
@@ -120,7 +230,7 @@ serve(async (req) => {
       const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
         existingUser.id,
         { 
-          password: defaultPassword,
+          password: userPassword,
           user_metadata: {
             name: requestData.owner_name,
             role: 'admin'
@@ -138,7 +248,7 @@ serve(async (req) => {
       // Create new auth user
       const { data: newAuthUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: requestData.email,
-        password: defaultPassword,
+        password: userPassword,
         user_metadata: {
           name: requestData.owner_name,
           role: 'admin'
@@ -234,13 +344,13 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         restaurant: restaurantData,
-        defaultPassword: defaultPassword,
+        adminPassword: userPassword,
         loginCredentials: {
           email: requestData.email,
-          password: defaultPassword,
+          password: userPassword,
           domain: requestData.domain
         },
-        message: `Restaurant approved successfully! Login credentials - Email: ${requestData.email}, Password: ${defaultPassword}, Domain: ${requestData.domain}`
+        message: `Restaurant approved successfully! Login credentials - Email: ${requestData.email}, Password: [Password set during registration], Domain: ${requestData.domain}`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

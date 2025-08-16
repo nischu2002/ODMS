@@ -385,6 +385,7 @@ export type Database = {
           id: string
           notes: string | null
           owner_name: string
+          password: string | null
           phone: string
           restaurant_name: string
           status: string
@@ -399,6 +400,7 @@ export type Database = {
           id?: string
           notes?: string | null
           owner_name: string
+          password?: string | null
           phone: string
           restaurant_name: string
           status?: string
@@ -413,6 +415,7 @@ export type Database = {
           id?: string
           notes?: string | null
           owner_name?: string
+          password?: string | null
           phone?: string
           restaurant_name?: string
           status?: string

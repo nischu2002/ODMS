@@ -179,6 +179,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           phone: data.phone,
           address: data.address,
           domain: domain,
+          password: data.adminPassword,
           status: 'pending'
         });
 

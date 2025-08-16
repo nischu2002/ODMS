@@ -49,7 +49,7 @@ export const ModernFooter = () => {
           <div className="lg:col-span-2">
             <div className="flex items-center space-x-3 mb-6">
               <img 
-                src="/lovable-uploads/a42ffb66-427c-426e-9a33-2ff9b05ee0b3.png" 
+                src="https://images.unsplash.com/photo-1577308856961-8e0ec9b5f1f4?w=48&h=48&fit=crop&crop=center" 
                 alt="ODMS Logo" 
                 className="w-12 h-12 rounded-xl"
               />

@@ -209,24 +209,39 @@ export default function RestaurantSignup() {
                 <div className="border-t pt-6">
                   <h3 className="text-lg font-semibold mb-4">Admin Account Setup</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="adminEmail"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Admin Email *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="email" 
-                              placeholder="admin@restaurant.com" 
-                              {...field} 
-                              required 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                     <FormField
+                       control={form.control}
+                       name="adminEmail"
+                       render={({ field }) => (
+                         <FormItem>
+                           <FormLabel>Admin Email *</FormLabel>
+                           <FormControl>
+                             <Input 
+                               type="email" 
+                               placeholder="admin@restaurant.com" 
+                               {...field} 
+                               required 
+                               pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+                               onBlur={(e) => {
+                                 const email = e.target.value;
+                                 const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+                                 const isValidEmail = emailRegex.test(email);
+                                 const isGenericEmail = /(^test@|^abc@|@test\.|@abc\.|@example\.|@dummy\.|@fake\.)/.test(email.toLowerCase());
+                                 
+                                 if (email && !isValidEmail) {
+                                   form.setError('adminEmail', { message: 'Please enter a valid email address' });
+                                 } else if (email && isGenericEmail) {
+                                   form.setError('adminEmail', { message: 'Please use a real business email address' });
+                                 } else {
+                                   form.clearErrors('adminEmail');
+                                 }
+                               }}
+                             />
+                           </FormControl>
+                           <FormMessage />
+                         </FormItem>
+                       )}
+                     />
 
                     <FormField
                       control={form.control}

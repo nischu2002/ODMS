@@ -39,11 +39,11 @@ export const AdminSidebar = () => {
     <div className="w-64 bg-white border-r border-gray-200 h-full">
       <div className="p-6">
         <div className="flex items-center space-x-2">
-          <img 
-            src="/lovable-uploads/a42ffb66-427c-426e-9a33-2ff9b05ee0b3.png" 
-            alt="ODMS Logo" 
-            className="w-8 h-8 rounded-lg"
-          />
+            <img 
+              src="https://images.unsplash.com/photo-1577308856961-8e0ec9b5f1f4?w=32&h=32&fit=crop&crop=center" 
+              alt="ODMS Logo" 
+              className="w-8 h-8 rounded-lg"
+            />
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Restaurant Admin</h2>
             <p className="text-sm text-gray-600">Management Portal</p>

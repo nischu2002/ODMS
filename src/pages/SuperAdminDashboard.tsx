@@ -39,6 +39,7 @@ import { TeamMemberCMS } from '../components/TeamMemberCMS';
 import { CMSManager } from '../components/CMSManager';
 import { RestaurantRequestsManager } from '../components/RestaurantRequestsManager';
 import { SystemNotificationsManager } from '../components/SystemNotificationsManager';
+import { RestaurantCRUD } from '../components/RestaurantCRUD';
 
 interface Restaurant {
   id: string;
@@ -329,6 +330,8 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
       </div>
+
+      <RestaurantCRUD />
 
       <Card>
         <CardHeader>
