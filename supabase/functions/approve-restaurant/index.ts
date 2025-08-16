@@ -48,8 +48,17 @@ serve(async (req) => {
 
     if (action === 'delete_restaurant') {
       console.log('Deleting restaurant:', restaurantId)
-      
-      // Delete restaurant (cascade delete will handle all related data via trigger)
+      // First delete associated users
+      const { error: deleteUsersError } = await supabaseAdmin
+        .from('users')
+        .delete()
+        .eq('restaurant_id', restaurantId)
+
+      if (deleteUsersError) {
+        console.error('Error deleting users:', deleteUsersError)
+      }
+
+      // Delete restaurant
       const { error: deleteError } = await supabaseAdmin
         .from('restaurants')
         .delete()
@@ -61,7 +70,7 @@ serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ success: true, message: 'Restaurant and all related data deleted successfully' }),
+        JSON.stringify({ success: true, message: 'Restaurant deleted successfully' }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200,
@@ -103,16 +112,15 @@ serve(async (req) => {
     let existingUser = existingUsers.users.find(u => u.email === requestData.email)
 
     let authUser;
-    // Use the password from the request data instead of default
-    const requestedPassword = requestData.password || 'TempPassword123!'
+    const defaultPassword = 'Restaurant123!'
 
     if (existingUser) {
       console.log('User already exists, updating password:', existingUser.id)
-      // Update existing user's password with the requested password
+      // Update existing user's password
       const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
         existingUser.id,
         { 
-          password: requestedPassword,
+          password: defaultPassword,
           user_metadata: {
             name: requestData.owner_name,
             role: 'admin'
@@ -127,10 +135,10 @@ serve(async (req) => {
       authUser = updatedUser.user
     } else {
       console.log('Creating new user for restaurant approval')
-      // Create new auth user with requested password
+      // Create new auth user
       const { data: newAuthUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: requestData.email,
-        password: requestedPassword,
+        password: defaultPassword,
         user_metadata: {
           name: requestData.owner_name,
           role: 'admin'
@@ -226,12 +234,13 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         restaurant: restaurantData,
+        defaultPassword: defaultPassword,
         loginCredentials: {
           email: requestData.email,
-          password: requestedPassword,
+          password: defaultPassword,
           domain: requestData.domain
         },
-        message: `Restaurant approved successfully! Login credentials - Email: ${requestData.email}, Password: ${requestedPassword}, Domain: ${requestData.domain}`
+        message: `Restaurant approved successfully! Login credentials - Email: ${requestData.email}, Password: ${defaultPassword}, Domain: ${requestData.domain}`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

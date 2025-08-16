@@ -37,7 +37,7 @@ import { Badge } from '../components/ui/badge';
 import { Switch } from '../components/ui/switch';
 import { TeamMemberCMS } from '../components/TeamMemberCMS';
 import { CMSManager } from '../components/CMSManager';
-import RestaurantRequestsManager from '../components/RestaurantRequestsManager';
+import { RestaurantRequestsManager } from '../components/RestaurantRequestsManager';
 import { SystemNotificationsManager } from '../components/SystemNotificationsManager';
 
 interface Restaurant {
@@ -63,7 +63,7 @@ interface User {
 }
 
 export default function SuperAdminDashboard() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
   const [searchTerm, setSearchTerm] = useState('');
   const [showTeamCMS, setShowTeamCMS] = useState(false);
@@ -495,6 +495,8 @@ export default function SuperAdminDashboard() {
 
   const renderCMS = () => <CMSManager />;
 
+  
+
   const renderNotifications = () => <SystemNotificationsManager />;
 
   const renderSettings = () => (
@@ -773,7 +775,7 @@ export default function SuperAdminDashboard() {
   );
 
   const renderRequests = () => (
-    <RestaurantRequestsManager onClose={() => setSearchParams({ tab: 'overview' })} />
+    <RestaurantRequestsManager />
   );
 
   if (showTeamCMS) {

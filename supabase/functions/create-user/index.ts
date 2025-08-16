@@ -48,12 +48,12 @@ serve(async (req) => {
     const existingUser = existingUsers.users.find(u => u.email === email)
 
     if (existingUser) {
-      // Check if user already has a profile in any restaurant
+      // Check if user already has a profile in this restaurant
       const { data: existingProfile } = await supabaseAdmin
         .from('users')
-        .select('id, restaurant_id')
+        .select('id')
         .eq('id', existingUser.id)
-        .maybeSingle()
+        .single()
 
       if (existingProfile) {
         throw new Error('User with this email already exists in the system')
@@ -66,11 +66,10 @@ serve(async (req) => {
       console.log('Using existing auth user:', existingUser.id)
       authUserId = existingUser.id
       
-      // Update user metadata and password
+      // Update user metadata
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
         existingUser.id,
         {
-          password: password,
           user_metadata: {
             name,
             role
