@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../integrations/supabase/client';
@@ -45,7 +44,7 @@ const TeamMemberCMS: React.FC<TeamMemberCMSProps> = ({ onClose }) => {
         id: member.id,
         name: member.name,
         position: member.position,
-        bio: member.description || member.bio || '',
+        bio: member.description || '',
         image_url: member.image_url || '',
         created_at: member.created_at
       }));

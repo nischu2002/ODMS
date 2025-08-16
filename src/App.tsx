@@ -193,21 +193,16 @@ const AppRoutes = () => {
   );
 };
 
-// Separate component that provides the AuthProvider context
-const AuthenticatedApp = () => (
-  <AuthProvider>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AppRoutes />
-    </TooltipProvider>
-  </AuthProvider>
-);
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
-      <AuthenticatedApp />
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <AppRoutes />
+        </TooltipProvider>
+      </AuthProvider>
     </BrowserRouter>
   </QueryClientProvider>
 );
