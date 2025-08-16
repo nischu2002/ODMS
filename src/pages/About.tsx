@@ -1,7 +1,6 @@
-
 import React from 'react';
-import { ModernNavbar } from '../components/ModernNavbar';
-import { ModernFooter } from '../components/ModernFooter';
+import ModernNavbar from '../components/ModernNavbar';
+import ModernFooter from '../components/ModernFooter';
 import { Card, CardContent } from '../components/ui/card';
 import { Store, Users, Truck, BarChart3, Shield, Globe, Target, Eye, Heart } from 'lucide-react';
 
