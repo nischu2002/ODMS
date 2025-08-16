@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../integrations/supabase/client';
@@ -21,120 +22,155 @@ interface TeamMember {
   created_at?: string;
 }
 
-const TeamMemberCMS = () => {
+interface TeamMemberCMSProps {
+  onClose?: () => void;
+}
+
+const TeamMemberCMS: React.FC<TeamMemberCMSProps> = ({ onClose }) => {
   const [open, setOpen] = useState(false);
   const [editMember, setEditMember] = useState<TeamMember | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: teamMembers, isLoading, isError } = useQuery<TeamMember[]>('teamMembers', async () => {
-    const { data, error } = await supabase
-      .from('team_members')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) {
-      throw new Error(error.message);
-    }
-    return data || [];
-  });
-
-  const { mutate: createTeamMember, isLoading: isCreateLoading } = useMutation(
-    async (newMember: Omit<TeamMember, 'id' | 'created_at'>) => {
+  const { data: teamMembers, isLoading, isError } = useQuery({
+    queryKey: ['teamMembers'],
+    queryFn: async (): Promise<TeamMember[]> => {
       const { data, error } = await supabase
         .from('team_members')
-        .insert([newMember])
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) {
+        throw new Error(error.message);
+      }
+      return (data || []).map(member => ({
+        id: member.id,
+        name: member.name,
+        position: member.position,
+        bio: member.description || member.bio || '',
+        image_url: member.image_url || '',
+        created_at: member.created_at
+      }));
+    }
+  });
+
+  const createTeamMemberMutation = useMutation({
+    mutationFn: async (newMember: Omit<TeamMember, 'id' | 'created_at'>) => {
+      const { data, error } = await supabase
+        .from('team_members')
+        .insert([{
+          name: newMember.name,
+          position: newMember.position,
+          description: newMember.bio,
+          image_url: newMember.image_url,
+          email: '',
+          phone: '',
+          is_active: true
+        }])
         .select('*')
         .single();
       if (error) {
         throw new Error(error.message);
       }
-      return data as TeamMember;
+      return {
+        id: data.id,
+        name: data.name,
+        position: data.position,
+        bio: data.description || '',
+        image_url: data.image_url || '',
+        created_at: data.created_at
+      } as TeamMember;
     },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries('teamMembers');
-        setOpen(false);
-        toast({
-          title: 'Success',
-          description: 'Team member created successfully.',
-        });
-      },
-      onError: (error: any) => {
-        toast({
-          title: 'Error',
-          description: error.message,
-          variant: 'destructive',
-        });
-      },
-    }
-  );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
+      setOpen(false);
+      toast({
+        title: 'Success',
+        description: 'Team member created successfully.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
 
-  const { mutate: updateTeamMember, isLoading: isUpdateLoading } = useMutation(
-    async (updatedMember: TeamMember) => {
+  const updateTeamMemberMutation = useMutation({
+    mutationFn: async (updatedMember: TeamMember) => {
       const { data, error } = await supabase
         .from('team_members')
-        .update(updatedMember)
+        .update({
+          name: updatedMember.name,
+          position: updatedMember.position,
+          description: updatedMember.bio,
+          image_url: updatedMember.image_url
+        })
         .eq('id', updatedMember.id)
         .select('*')
         .single();
       if (error) {
         throw new Error(error.message);
       }
-      return data as TeamMember;
+      return {
+        id: data.id,
+        name: data.name,
+        position: data.position,
+        bio: data.description || '',
+        image_url: data.image_url || '',
+        created_at: data.created_at
+      } as TeamMember;
     },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries('teamMembers');
-        setEditMember(null);
-        toast({
-          title: 'Success',
-          description: 'Team member updated successfully.',
-        });
-      },
-      onError: (error: any) => {
-        toast({
-          title: 'Error',
-          description: error.message,
-          variant: 'destructive',
-        });
-      },
-    }
-  );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
+      setEditMember(null);
+      toast({
+        title: 'Success',
+        description: 'Team member updated successfully.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
 
-  const { mutate: deleteTeamMember, isLoading: isDeleteLoading } = useMutation(
-    async (id: string) => {
+  const deleteTeamMemberMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase.from('team_members').delete().eq('id', id);
       if (error) {
         throw new Error(error.message);
       }
     },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries('teamMembers');
-        toast({
-          title: 'Success',
-          description: 'Team member deleted successfully.',
-        });
-      },
-      onError: (error: any) => {
-        toast({
-          title: 'Error',
-          description: error.message,
-          variant: 'destructive',
-        });
-      },
-    }
-  );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
+      toast({
+        title: 'Success',
+        description: 'Team member deleted successfully.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
 
   const handleCreate = async (newMember: Omit<TeamMember, 'id' | 'created_at'>) => {
-    createTeamMember(newMember);
+    createTeamMemberMutation.mutate(newMember);
   };
 
   const handleUpdate = async (updatedMember: TeamMember) => {
-    updateTeamMember(updatedMember);
+    updateTeamMemberMutation.mutate(updatedMember);
   };
 
   const handleDelete = async (id: string) => {
-    deleteTeamMember(id);
+    deleteTeamMemberMutation.mutate(id);
   };
 
   if (isLoading) return <p>Loading...</p>;
@@ -147,20 +183,27 @@ const TeamMemberCMS = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-2xl font-bold">Our Team</CardTitle>
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Team Member
+            <div className="flex gap-2">
+              {onClose && (
+                <Button variant="outline" onClick={onClose}>
+                  Back
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Add Team Member</DialogTitle>
-                </DialogHeader>
-                <CreateTeamMemberForm onCreate={handleCreate} loading={isCreateLoading} />
-              </DialogContent>
-            </Dialog>
+              )}
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Team Member
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Add Team Member</DialogTitle>
+                  </DialogHeader>
+                  <CreateTeamMemberForm onCreate={handleCreate} loading={createTeamMemberMutation.isPending} />
+                </DialogContent>
+              </Dialog>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -189,7 +232,7 @@ const TeamMemberCMS = () => {
                           <EditTeamMemberForm
                             member={member}
                             onUpdate={handleUpdate}
-                            loading={isUpdateLoading}
+                            loading={updateTeamMemberMutation.isPending}
                             onCancel={() => setEditMember(null)}
                           />
                         </DialogContent>
@@ -198,7 +241,7 @@ const TeamMemberCMS = () => {
                         variant="destructive"
                         size="icon"
                         onClick={() => handleDelete(member.id)}
-                        disabled={isDeleteLoading}
+                        disabled={deleteTeamMemberMutation.isPending}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

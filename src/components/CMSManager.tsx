@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { TeamMemberCMS } from './TeamMemberCMS';
+import TeamMemberCMS from './TeamMemberCMS';
 import { 
   Globe, 
   FileText, 
