@@ -1,11 +1,12 @@
+
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Store, Users, Truck, BarChart3, Shield, Globe, Star, Clock, MapPin } from 'lucide-react';
-import ModernNavbar from '../components/ModernNavbar';
-import ModernFooter from '../components/ModernFooter';
+import { ModernNavbar } from '../components/ModernNavbar';
+import { ModernFooter } from '../components/ModernFooter';
 
 export default function Index() {
   const navigate = useNavigate();

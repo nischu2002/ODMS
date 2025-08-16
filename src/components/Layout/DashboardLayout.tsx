@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AdminSidebar } from './AdminSidebar';
 import { RestaurantSidebar } from './RestaurantSidebar';
@@ -9,19 +9,17 @@ import { DashboardHeader } from './DashboardHeader';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
-  title?: string;
 }
 
-export const DashboardLayout = ({ children, title = "Dashboard" }: DashboardLayoutProps) => {
+export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
 
   const getSidebar = () => {
     switch (user?.role) {
       case 'super_admin':
         return <SuperAdminSidebar />;
       case 'admin':
-        return <AdminSidebar activeTab={activeTab} onTabChange={setActiveTab} />;
+        return <AdminSidebar />;
       case 'restaurant_staff':
         return <RestaurantSidebar />;
       case 'rider':
@@ -35,7 +33,7 @@ export const DashboardLayout = ({ children, title = "Dashboard" }: DashboardLayo
     <div className="min-h-screen bg-gray-50 flex">
       {getSidebar()}
       <div className="flex-1 flex flex-col">
-        <DashboardHeader title={title} />
+        <DashboardHeader />
         <main className="flex-1 p-6 overflow-auto">
           {children}
         </main>

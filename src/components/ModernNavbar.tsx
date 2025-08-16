@@ -1,76 +1,72 @@
 
-import React from 'react';
+import React, { useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Menu, X } from 'lucide-react';
-import { useState } from 'react';
 
-const ModernNavbar = () => {
+export const ModernNavbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
-  const scrollToSection = (sectionId: string) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-    setIsMenuOpen(false);
-  };
+  const navItems = [
+    { name: 'Home', href: '/' },
+    { name: 'About Us', href: '/about' },
+    { name: 'Teams', href: '/teams' },
+  ];
 
   return (
-    <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md z-50 border-b border-gray-100">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <div className="flex items-center space-x-2">
-            <div className="w-10 h-10">
-              <img 
-                src="/lovable-uploads/a42ffb66-427c-426e-9a33-2ff9b05ee0b3.png" 
-                alt="ODMS Logo" 
-                className="w-full h-full object-contain"
-              />
+          <div className="flex items-center space-x-3">
+            <img 
+              src="https://images.unsplash.com/photo-1577308856961-8e0ec9b5f1f4?w=48&h=48&fit=crop&crop=center" 
+              alt="ODMS Logo" 
+              className="w-12 h-12 rounded-xl"
+            />
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                ODMS
+              </h1>
+              <p className="text-xs text-gray-500 -mt-1">Order & Delivery Management</p>
             </div>
-            <span className="text-xl font-bold text-gray-900">ODMS</span>
           </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <button 
-              onClick={() => scrollToSection('hero')}
-              className="text-gray-700 hover:text-blue-600 transition-colors"
+            {navItems.map((item) => (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                className={({ isActive }) =>
+                  `text-sm font-medium transition-colors hover:text-blue-600 ${
+                    isActive 
+                      ? 'text-blue-600 border-b-2 border-blue-600 pb-1' 
+                      : 'text-gray-700'
+                  }`
+                }
+              >
+                {item.name}
+              </NavLink>
+            ))}
+          </div>
+
+          {/* Desktop Actions */}
+          <div className="hidden md:flex items-center space-x-4">
+            <Button 
+              variant="ghost" 
+              onClick={() => navigate('/login')}
+              className="text-gray-700 hover:text-blue-600"
             >
-              Home
-            </button>
-            <button 
-              onClick={() => scrollToSection('about')}
-              className="text-gray-700 hover:text-blue-600 transition-colors"
+              Sign In
+            </Button>
+            <Button 
+              onClick={() => navigate('/signup')}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-300"
             >
-              About
-            </button>
-            <button 
-              onClick={() => scrollToSection('features')}
-              className="text-gray-700 hover:text-blue-600 transition-colors"
-            >
-              Features
-            </button>
-            <button 
-              onClick={() => scrollToSection('team')}
-              className="text-gray-700 hover:text-blue-600 transition-colors"
-            >
-              Team
-            </button>
-            <button 
-              onClick={() => scrollToSection('contact')}
-              className="text-gray-700 hover:text-blue-600 transition-colors"
-            >
-              Contact
-            </button>
-            <div className="flex items-center space-x-3">
-              <Button variant="outline" size="sm" onClick={() => window.location.href = '/login'}>
-                Login
-              </Button>
-              <Button size="sm" onClick={() => window.location.href = '/restaurant-signup'}>
-                Get Started
-              </Button>
-            </div>
+              Get Started
+            </Button>
           </div>
 
           {/* Mobile menu button */}
@@ -79,55 +75,53 @@ const ModernNavbar = () => {
               variant="ghost"
               size="sm"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="text-gray-700"
             >
-              {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </Button>
           </div>
         </div>
 
         {/* Mobile Navigation */}
         {isMenuOpen && (
-          <div className="md:hidden">
-            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t border-gray-100">
-              <button 
-                onClick={() => scrollToSection('hero')}
-                className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-md w-full text-left"
-              >
-                Home
-              </button>
-              <button 
-                onClick={() => scrollToSection('about')}
-                className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-md w-full text-left"
-              >
-                About
-              </button>
-              <button 
-                onClick={() => scrollToSection('features')}
-                className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-md w-full text-left"
-              >
-                Features
-              </button>
-              <button 
-                onClick={() => scrollToSection('team')}
-                className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-md w-full text-left"
-              >
-                Team
-              </button>
-              <button 
-                onClick={() => scrollToSection('contact')}
-                className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-md w-full text-left"
-              >
-                Contact
-              </button>
-              <div className="pt-4 pb-3 border-t border-gray-200">
-                <div className="flex items-center px-3 space-x-3">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => window.location.href = '/login'}>
-                    Login
-                  </Button>
-                  <Button size="sm" className="flex-1" onClick={() => window.location.href = '/restaurant-signup'}>
-                    Get Started
-                  </Button>
-                </div>
+          <div className="md:hidden border-t border-gray-200 py-4">
+            <div className="flex flex-col space-y-3">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.name}
+                  to={item.href}
+                  className={({ isActive }) =>
+                    `px-3 py-2 text-base font-medium transition-colors ${
+                      isActive 
+                        ? 'text-blue-600 bg-blue-50 rounded-lg' 
+                        : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-lg'
+                    }`
+                  }
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  {item.name}
+                </NavLink>
+              ))}
+              <div className="flex flex-col space-y-2 pt-4 border-t border-gray-200">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    navigate('/login');
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full"
+                >
+                  Sign In
+                </Button>
+                <Button 
+                  onClick={() => {
+                    navigate('/signup');
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                >
+                  Get Started
+                </Button>
               </div>
             </div>
           </div>
@@ -136,5 +130,3 @@ const ModernNavbar = () => {
     </nav>
   );
 };
-
-export default ModernNavbar;
