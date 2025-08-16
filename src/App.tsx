@@ -29,7 +29,9 @@ const queryClient = new QueryClient({
 });
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) => {
+  console.log('ProtectedRoute: Calling useAuth');
   const { user, isLoading } = useAuth();
+  console.log('ProtectedRoute: useAuth result', { user: !!user, isLoading });
   
   if (isLoading) {
     return (
@@ -55,7 +57,9 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode;
 };
 
 const AppRoutes = () => {
+  console.log('AppRoutes: About to call useAuth');
   const { user, isLoading } = useAuth();
+  console.log('AppRoutes: useAuth result', { user: !!user, isLoading });
   
   if (isLoading) {
     return (
@@ -193,18 +197,21 @@ const AppRoutes = () => {
   );
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <BrowserRouter>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <AppRoutes />
-        </TooltipProvider>
-      </AuthProvider>
-    </BrowserRouter>
-  </QueryClientProvider>
-);
+const App = () => {
+  console.log('App: Rendering App component');
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <AppRoutes />
+          </TooltipProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

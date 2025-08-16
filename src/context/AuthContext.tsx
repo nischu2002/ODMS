@@ -20,16 +20,19 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  console.log('AuthProvider: Initializing AuthProvider');
   const [user, setUser] = useState<AppUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('AuthProvider: useEffect starting');
     let mounted = true;
 
     const initializeAuth = async () => {
       try {
+        console.log('AuthProvider: Initializing auth');
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         if (!mounted) return;
@@ -41,6 +44,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
         
         setIsLoading(false);
+        console.log('AuthProvider: Auth initialization complete');
       } catch (error) {
         console.error('Auth initialization error:', error);
         if (mounted) {
@@ -468,6 +472,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  console.log('AuthProvider: Providing context value', { user: !!user, isLoading });
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -488,8 +494,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 export const useAuth = () => {
+  console.log('useAuth: Hook called');
   const context = useContext(AuthContext);
+  console.log('useAuth: Context value', { context: !!context });
   if (context === undefined) {
+    console.error('useAuth: Context is undefined - not within AuthProvider');
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
