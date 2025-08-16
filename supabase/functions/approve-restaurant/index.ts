@@ -13,74 +13,71 @@ serve(async (req) => {
   }
 
   try {
-    // Create a Supabase client with service role key for admin operations
-    const supabaseAdmin = createClient(
+    const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { requestId, requestData, action, restaurantId, updates } = await req.json()
+    const { action, requestId, requestData, restaurantId, updates } = await req.json()
 
-    console.log('Received request:', { action, requestId, restaurantId })
-
-    // Handle different actions
-    if (action === 'create_restaurant') {
-      console.log('Creating new restaurant directly:', requestData)
+    if (action === 'delete_restaurant') {
+      console.log('Deleting restaurant:', restaurantId)
       
-      // Check if user already exists by email
-      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-      let existingUser = existingUsers.users.find(u => u.email === requestData.email)
+      // Get restaurant details first
+      const { data: restaurant, error: fetchError } = await supabaseClient
+        .from('restaurants')
+        .select('admin_id')
+        .eq('id', restaurantId)
+        .single()
 
-      let authUser;
-      const userPassword = requestData.password || 'TempPass123!'
+      if (fetchError) {
+        throw new Error(`Failed to fetch restaurant: ${fetchError.message}`)
+      }
 
-      if (existingUser) {
-        console.log('User already exists, updating password:', existingUser.id)
-        // Update existing user's password
-        const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-          existingUser.id,
-          { 
-            password: userPassword,
-            user_metadata: {
-              name: requestData.owner_name,
-              role: 'admin'
-            }
+      // Delete the restaurant (cascade will handle related data)
+      const { error: deleteError } = await supabaseClient
+        .from('restaurants')
+        .delete()
+        .eq('id', restaurantId)
+
+      if (deleteError) {
+        throw new Error(`Failed to delete restaurant: ${deleteError.message}`)
+      }
+
+      // Try to delete the auth user if admin_id exists
+      if (restaurant.admin_id) {
+        try {
+          const { error: authError } = await supabaseClient.auth.admin.deleteUser(restaurant.admin_id)
+          if (authError) {
+            console.warn('Failed to delete auth user:', authError.message)
           }
-        )
-
-        if (updateError) {
-          console.error('Error updating existing user:', updateError)
-          throw updateError
+        } catch (authErr) {
+          console.warn('Auth user deletion failed:', authErr)
         }
-        authUser = updatedUser.user
-      } else {
-        console.log('Creating new user for direct restaurant creation')
-        // Create new auth user
-        const { data: newAuthUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: requestData.email,
-          password: userPassword,
-          user_metadata: {
-            name: requestData.owner_name,
-            role: 'admin'
-          },
-          email_confirm: true
-        })
-
-        if (authError) {
-          console.error('Error creating auth user:', authError)
-          throw authError
-        }
-        authUser = newAuthUser.user
       }
 
-      if (!authUser) {
-        throw new Error('Failed to create or update auth user')
+      return new Response(
+        JSON.stringify({ success: true, message: 'Restaurant deleted successfully' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (action === 'create_restaurant') {
+      console.log('Creating restaurant directly:', requestData)
+      
+      // Create auth user first
+      const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
+        email: requestData.email,
+        password: requestData.password,
+        email_confirm: true
+      })
+
+      if (authError) {
+        throw new Error(`Failed to create auth user: ${authError.message}`)
       }
 
-      console.log('Auth user ready:', authUser.id)
-
-      // Create the restaurant
-      const { data: restaurantData, error: restaurantError } = await supabaseAdmin
+      // Create restaurant
+      const { data: restaurantData, error: restaurantError } = await supabaseClient
         .from('restaurants')
         .insert({
           name: requestData.restaurant_name,
@@ -88,189 +85,103 @@ serve(async (req) => {
           address: requestData.address,
           phone: requestData.phone,
           email: requestData.email,
-          admin_id: authUser.id,
-          business_type: requestData.business_type
+          business_type: requestData.business_type,
+          admin_id: authData.user.id,
+          is_active: true
         })
         .select()
         .single()
 
       if (restaurantError) {
-        console.error('Error creating restaurant:', restaurantError)
-        throw restaurantError
+        // Cleanup auth user if restaurant creation fails
+        await supabaseClient.auth.admin.deleteUser(authData.user.id)
+        throw new Error(`Failed to create restaurant: ${restaurantError.message}`)
       }
 
-      console.log('Restaurant created:', restaurantData.id)
-
-      // Create the user profile
-      const { error: userError } = await supabaseAdmin
+      // Create user profile
+      const { error: userError } = await supabaseClient
         .from('users')
-        .upsert({
-          id: authUser.id,
+        .insert({
+          id: authData.user.id,
           restaurant_id: restaurantData.id,
-          email: requestData.email,
           name: requestData.owner_name,
-          role: 'admin',
+          email: requestData.email,
           phone: requestData.phone,
+          role: 'admin',
           is_active: true
         })
 
       if (userError) {
-        console.error('Error creating user profile:', userError)
-        throw userError
+        console.error('Failed to create user profile:', userError.message)
       }
-
-      console.log('User profile created successfully')
 
       return new Response(
         JSON.stringify({ 
           success: true, 
+          message: 'Restaurant created successfully',
           restaurant: restaurantData,
-          message: `Restaurant ${requestData.restaurant_name} created successfully!`
+          loginCredentials: {
+            email: requestData.email,
+            domain: requestData.domain
+          },
+          defaultPassword: requestData.password
         }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        },
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (action === 'update_restaurant') {
-      console.log('Updating restaurant with:', updates)
-      // Update restaurant details
-      const { error: updateError } = await supabaseAdmin
+      console.log('Updating restaurant:', restaurantId, updates)
+      
+      const { error: updateError } = await supabaseClient
         .from('restaurants')
         .update(updates)
         .eq('id', restaurantId)
 
       if (updateError) {
-        console.error('Error updating restaurant:', updateError)
-        throw updateError
+        throw new Error(`Failed to update restaurant: ${updateError.message}`)
       }
 
       return new Response(
         JSON.stringify({ success: true, message: 'Restaurant updated successfully' }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        },
-      )
-    }
-
-    if (action === 'delete_restaurant') {
-      console.log('Deleting restaurant:', restaurantId)
-      // First delete associated users
-      const { error: deleteUsersError } = await supabaseAdmin
-        .from('users')
-        .delete()
-        .eq('restaurant_id', restaurantId)
-
-      if (deleteUsersError) {
-        console.error('Error deleting users:', deleteUsersError)
-      }
-
-      // Delete restaurant
-      const { error: deleteError } = await supabaseAdmin
-        .from('restaurants')
-        .delete()
-        .eq('id', restaurantId)
-
-      if (deleteError) {
-        console.error('Error deleting restaurant:', deleteError)
-        throw deleteError
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, message: 'Restaurant deleted successfully' }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        },
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (action === 'reset_password') {
       console.log('Resetting password for admin:', updates.admin_id)
-      // Reset restaurant admin password
-      const { error: resetError } = await supabaseAdmin.auth.admin.updateUserById(
+      
+      const { error: resetError } = await supabaseClient.auth.admin.updateUserById(
         updates.admin_id,
         { password: updates.new_password }
       )
 
       if (resetError) {
-        console.error('Error resetting password:', resetError)
-        throw resetError
+        throw new Error(`Failed to reset password: ${resetError.message}`)
       }
 
       return new Response(
         JSON.stringify({ success: true, message: 'Password reset successfully' }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        },
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Default approve restaurant action
-    if (!requestId || !requestData) {
-      throw new Error('Missing requestId or requestData')
+    // Original approval logic
+    console.log('Processing restaurant request:', requestId)
+    
+    // Create auth user first
+    const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
+      email: requestData.email,
+      password: requestData.password || 'TempPassword123!',
+      email_confirm: true
+    })
+
+    if (authError) {
+      throw new Error(`Failed to create auth user: ${authError.message}`)
     }
 
-    console.log('Approving restaurant request:', requestData)
-
-    // Check if user already exists by email
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-    let existingUser = existingUsers.users.find(u => u.email === requestData.email)
-
-    let authUser;
-    const userPassword = requestData.password || 'TempPass123!'
-
-    if (existingUser) {
-      console.log('User already exists, updating password:', existingUser.id)
-      // Update existing user's password
-      const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-        existingUser.id,
-        { 
-          password: userPassword,
-          user_metadata: {
-            name: requestData.owner_name,
-            role: 'admin'
-          }
-        }
-      )
-
-      if (updateError) {
-        console.error('Error updating existing user:', updateError)
-        throw updateError
-      }
-      authUser = updatedUser.user
-    } else {
-      console.log('Creating new user for restaurant approval')
-      // Create new auth user
-      const { data: newAuthUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: requestData.email,
-        password: userPassword,
-        user_metadata: {
-          name: requestData.owner_name,
-          role: 'admin'
-        },
-        email_confirm: true
-      })
-
-      if (authError) {
-        console.error('Error creating auth user:', authError)
-        throw authError
-      }
-      authUser = newAuthUser.user
-    }
-
-    if (!authUser) {
-      throw new Error('Failed to create or update auth user')
-    }
-
-    console.log('Auth user ready:', authUser.id)
-
-    // Create the restaurant
-    const { data: restaurantData, error: restaurantError } = await supabaseAdmin
+    // Create restaurant
+    const { data: restaurantData, error: restaurantError } = await supabaseClient
       .from('restaurants')
       .insert({
         name: requestData.restaurant_name,
@@ -278,97 +189,67 @@ serve(async (req) => {
         address: requestData.address,
         phone: requestData.phone,
         email: requestData.email,
-        admin_id: authUser.id,
-        business_type: requestData.business_type
+        business_type: requestData.business_type,
+        admin_id: authData.user.id,
+        is_active: true
       })
       .select()
       .single()
 
     if (restaurantError) {
-      console.error('Error creating restaurant:', restaurantError)
-      throw restaurantError
+      await supabaseClient.auth.admin.deleteUser(authData.user.id)
+      throw new Error(`Failed to create restaurant: ${restaurantError.message}`)
     }
 
-    console.log('Restaurant created:', restaurantData.id)
-
-    // Create or update the user profile
-    const { error: userError } = await supabaseAdmin
+    // Create user profile
+    const { error: userError } = await supabaseClient
       .from('users')
-      .upsert({
-        id: authUser.id,
+      .insert({
+        id: authData.user.id,
         restaurant_id: restaurantData.id,
-        email: requestData.email,
         name: requestData.owner_name,
-        role: 'admin',
+        email: requestData.email,
         phone: requestData.phone,
+        role: 'admin',
         is_active: true
       })
 
     if (userError) {
-      console.error('Error creating user profile:', userError)
-      throw userError
+      console.error('Failed to create user profile:', userError.message)
     }
 
-    console.log('User profile created successfully')
-
-    // Update the request status to approved
-    const { error: updateError } = await supabaseAdmin
+    // Update request status
+    const { error: updateError } = await supabaseClient
       .from('restaurant_requests')
-      .update({ 
-        status: 'approved', 
-        updated_at: new Date().toISOString() 
-      })
+      .update({ status: 'approved' })
       .eq('id', requestId)
 
     if (updateError) {
-      console.error('Error updating request status:', updateError)
-      throw updateError
+      console.error('Failed to update request status:', updateError.message)
     }
-
-    // Create notification for super admins
-    const { error: notificationError } = await supabaseAdmin
-      .from('notifications')
-      .insert({
-        notification_type: 'restaurant_approved',
-        message: `Restaurant ${requestData.restaurant_name} has been approved and is now active`,
-        status: 'pending'
-      })
-
-    if (notificationError) {
-      console.error('Error creating notification:', notificationError)
-    }
-
-    console.log(`Restaurant ${requestData.restaurant_name} approved and created successfully`)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
+        message: 'Restaurant approved successfully',
         restaurant: restaurantData,
-        adminPassword: userPassword,
         loginCredentials: {
           email: requestData.email,
-          password: userPassword,
           domain: requestData.domain
         },
-        message: `Restaurant approved successfully! Login credentials - Email: ${requestData.email}, Password: [Password set during registration], Domain: ${requestData.domain}`
+        defaultPassword: requestData.password || 'TempPassword123!'
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Error in approve-restaurant function:', error)
+    console.error('Function error:', error)
     return new Response(
       JSON.stringify({ 
-        error: error.message,
-        details: 'Check function logs for more information'
+        success: false, 
+        error: error.message || 'An unexpected error occurred' 
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      },
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }
 })

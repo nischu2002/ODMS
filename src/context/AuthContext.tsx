@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../integrations/supabase/client';
@@ -378,11 +377,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (email: string, password: string, domain: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      console.log('Attempting login with:', { email, domain });
+      
+      // First verify the domain exists
       const { data: restaurantData, error: domainError } = await supabase
         .from('restaurants')
-        .select('id')
+        .select('id, is_active')
         .eq('domain', domain)
         .maybeSingle();
+
+      console.log('Domain lookup result:', { restaurantData, domainError });
 
       if (domainError) {
         return { success: false, error: 'Database error during login. Please try again.' };
@@ -392,29 +396,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: `Domain "${domain}" not found. Please check your restaurant domain.` };
       }
 
+      if (!restaurantData.is_active) {
+        return { success: false, error: 'This restaurant is currently inactive. Please contact support.' };
+      }
+
+      // Attempt authentication
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
+      console.log('Auth result:', { authData: !!authData.user, authError });
+
       if (authError) {
         if (authError.message.includes('Invalid login credentials')) {
           return { success: false, error: 'Invalid email or password. Please check your credentials.' };
         }
-        if (!authError.message.includes('email_not_confirmed') && !authError.message.includes('Email not confirmed')) {
-          return { success: false, error: authError.message };
-        }
+        return { success: false, error: authError.message };
       }
 
       if (!authData.user) {
         return { success: false, error: 'Authentication failed. Please try again.' };
       }
 
+      // Verify user belongs to this restaurant
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('restaurant_id')
+        .select('restaurant_id, is_active')
         .eq('id', authData.user.id)
         .maybeSingle();
+
+      console.log('User verification result:', { userData, userError });
 
       if (userError) {
         return { success: false, error: 'User verification failed. Please contact support.' };
@@ -424,10 +436,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: 'User profile not found. Please contact support.' };
       }
 
+      if (!userData.is_active) {
+        return { success: false, error: 'Your account is inactive. Please contact your administrator.' };
+      }
+
       if (userData.restaurant_id !== restaurantData.id) {
         return { success: false, error: `This account is not associated with domain "${domain}". Please check your domain.` };
       }
 
+      console.log('Login successful for user:', authData.user.id);
       return { success: true };
     } catch (error) {
       console.error('Login failed:', error);
