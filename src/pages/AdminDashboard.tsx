@@ -1,79 +1,62 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { DashboardLayout } from '../components/Layout/DashboardLayout';
+import { RestaurantCRUD } from '../components/RestaurantCRUD';
+import { Analytics } from '../components/Analytics';
+import { CMSManager } from '../components/CMSManager';
+import { SystemNotificationsManager } from '../components/SystemNotificationsManager';
 import { OrderManagement } from '../components/OrderManagement';
 import { CreateOrderForm } from '../components/CreateOrderForm';
-import { StaffManagement } from '../components/StaffManagement';
-import { RiderManagement } from '../components/RiderManagement';
-import { MenuManagement } from '../components/MenuManagement';
-import { Analytics } from '../components/Analytics';
-import { NotificationCenter } from '../components/NotificationCenter';
-import { NotificationPopup } from '../components/NotificationPopup';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { useAuth } from '../context/AuthContext';
+import { useLocation } from 'react-router-dom';
 
 export default function AdminDashboard() {
-  const { restaurant } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  const location = useLocation();
+  const currentTab = new URLSearchParams(location.search).get('tab') || 'overview';
+
+  const renderContent = () => {
+    switch (currentTab) {
+      case 'restaurants':
+        return <RestaurantCRUD />;
+      case 'analytics':
+        return <Analytics />;
+      case 'cms':
+        return <CMSManager />;
+      case 'notifications':
+        return <SystemNotificationsManager />;
+      case 'orders':
+        return <OrderManagement />;
+      case 'create-order':
+        return <CreateOrderForm />;
+      default:
+        return (
+          <div className="space-y-6">
+            <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold mb-2">Total Restaurants</h3>
+                <p className="text-3xl font-bold text-blue-600">12</p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold mb-2">Active Orders</h3>
+                <p className="text-3xl font-bold text-green-600">85</p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold mb-2">Total Revenue</h3>
+                <p className="text-3xl font-bold text-purple-600">Rs. 45,230</p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold mb-2">Delivery Partners</h3>
+                <p className="text-3xl font-bold text-orange-600">28</p>
+              </div>
+            </div>
+          </div>
+        );
+    }
+  };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-gray-600">Welcome back! Here's what's happening at {restaurant?.name}.</p>
-        </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="orders">Orders</TabsTrigger>
-            <TabsTrigger value="create-order">Create Order</TabsTrigger>
-            <TabsTrigger value="staff">Staff</TabsTrigger>
-            <TabsTrigger value="riders">Riders</TabsTrigger>
-            <TabsTrigger value="menu">Menu</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-4">
-            <Analytics />
-          </TabsContent>
-
-          <TabsContent value="orders" className="space-y-4">
-            <OrderManagement />
-          </TabsContent>
-
-          <TabsContent value="create-order" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Create New Order</CardTitle>
-                <CardDescription>Add a new order to the system</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CreateOrderForm />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="staff" className="space-y-4">
-            <StaffManagement />
-          </TabsContent>
-
-          <TabsContent value="riders" className="space-y-4">
-            <RiderManagement />
-          </TabsContent>
-
-          <TabsContent value="menu" className="space-y-4">
-            <MenuManagement />
-          </TabsContent>
-
-          <TabsContent value="notifications" className="space-y-4">
-            <NotificationCenter />
-          </TabsContent>
-        </Tabs>
-      </div>
-      <NotificationPopup />
+      {renderContent()}
     </DashboardLayout>
   );
 }
