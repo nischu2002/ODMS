@@ -290,7 +290,7 @@ export const OrderManagement = () => {
                           <Eye className="h-4 w-4" />
                         </Button>
                         
-                        {/* Staff can now edit/delete orders */}
+                        {/* Both admin and staff can now edit/delete orders */}
                         {(user?.role === 'admin' || user?.role === 'restaurant_staff') && (
                           <>
                             <Button
@@ -372,36 +372,34 @@ export const OrderManagement = () => {
                       )}
                     </div>
 
-                    {/* Rider assignment - only for admin */}
-                    {user?.role === 'admin' && (
-                      <div>
-                        <label className="text-sm font-medium flex items-center gap-1">
-                          <Bike className="h-4 w-4" />
-                          Delivery Rider
-                        </label>
-                        <Select 
-                          value={order.assigned_rider_id || ''} 
-                          onValueChange={(value) => handleRiderAssignment(order.id, value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Assign rider" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="unassign">Unassign</SelectItem>
-                            {riders.map(rider => (
-                              <SelectItem key={rider.id} value={rider.id}>
-                                {rider.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {order.assigned_rider && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Assigned: {order.assigned_rider.name}
-                          </p>
-                        )}
-                      </div>
-                    )}
+                    {/* Rider assignment - now available for both admin and staff */}
+                    <div>
+                      <label className="text-sm font-medium flex items-center gap-1">
+                        <Bike className="h-4 w-4" />
+                        Delivery Rider
+                      </label>
+                      <Select 
+                        value={order.assigned_rider_id || ''} 
+                        onValueChange={(value) => handleRiderAssignment(order.id, value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Assign rider" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassign">Unassign</SelectItem>
+                          {riders.map(rider => (
+                            <SelectItem key={rider.id} value={rider.id}>
+                              {rider.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {order.assigned_rider && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Assigned: {order.assigned_rider.name}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   {selectedOrderId === order.id && (
