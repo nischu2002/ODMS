@@ -13,7 +13,7 @@ export const DashboardHeader = () => {
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-3">
             <img 
-              src="https://images.unsplash.com/photo-1577308856961-8e0ec9b5f1f4?w=32&h=32&fit=crop&crop=center" 
+              src="/odms-uploads/e22052b3-b40e-4c5b-a160-dc3662f8f7b2.png" 
               alt="ODMS Logo" 
               className="w-8 h-8 rounded-lg"
             />
