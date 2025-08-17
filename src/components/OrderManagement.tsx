@@ -8,7 +8,7 @@ import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Trash2, Eye, User, Bike, Edit } from 'lucide-react';
+import { Trash2, Eye, User, Bike, Edit, CreditCard } from 'lucide-react';
 import { OrderDeletionDialog } from './OrderDeletionDialog';
 import { useNotifications } from '../hooks/useNotifications';
 
@@ -28,11 +28,16 @@ interface Order {
   items: OrderItem[];
   totalAmount: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'assigned' | 'picked_up' | 'delivered' | 'cancelled';
+  paymentStatus: 'pending' | 'paid' | 'failed';
+  paymentMode: 'cod' | 'esewa' | 'phonepay' | 'bank_transfer' | 'online';
   assignedStaffId?: string;
   assignedRiderId?: string;
   riderId?: string;
   createdAt: string;
   estimatedDeliveryTime?: string;
+  collectedAmount?: number;
+  collectedBy?: string;
+  collectedAt?: string;
 }
 
 export const OrderManagement = () => {
@@ -60,7 +65,8 @@ export const OrderManagement = () => {
           *,
           order_items(*),
           assigned_staff:users!orders_assigned_staff_id_fkey(name, email),
-          assigned_rider:users!orders_assigned_rider_id_fkey(name, email)
+          assigned_rider:users!orders_assigned_rider_id_fkey(name, email),
+          collected_by_user:users!orders_collected_by_fkey(name, email)
         `)
         .eq('restaurant_id', restaurant.id)
         .order('created_at', { ascending: false });
@@ -69,7 +75,7 @@ export const OrderManagement = () => {
       return data;
     },
     enabled: !!restaurant?.id,
-    refetchInterval: 5000
+    refetchInterval: 3000 // More frequent updates for real-time syncing
   });
 
   const { data: staff = [] } = useQuery({
@@ -213,6 +219,20 @@ export const OrderManagement = () => {
     });
   };
 
+  const handlePaymentStatusChange = (orderId: string, newPaymentStatus: string) => {
+    updateOrderMutation.mutate({
+      orderId,
+      updates: { payment_status: newPaymentStatus }
+    });
+  };
+
+  const handlePaymentModeChange = (orderId: string, newPaymentMode: string) => {
+    updateOrderMutation.mutate({
+      orderId,
+      updates: { payment_mode: newPaymentMode }
+    });
+  };
+
   const handleStaffAssignment = (orderId: string, staffId: string) => {
     const updates = {
       assigned_staff_id: staffId === 'unassign' ? null : staffId,
@@ -250,6 +270,15 @@ export const OrderManagement = () => {
     }
   };
 
+  const getPaymentStatusColor = (status: string) => {
+    switch (status) {
+      case 'paid': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'failed': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   if (isLoading) {
     return <div className="flex items-center justify-center p-8">Loading orders...</div>;
   }
@@ -259,7 +288,7 @@ export const OrderManagement = () => {
       <Card>
         <CardHeader>
           <CardTitle>Order Management</CardTitle>
-          <CardDescription>Manage and track all restaurant orders</CardDescription>
+          <CardDescription>Manage and track all restaurant orders with real-time updates</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -274,10 +303,15 @@ export const OrderManagement = () => {
                       <p className="text-lg font-bold text-green-600">NPR {order.total_amount}</p>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                      <Badge className={getStatusColor(order.status)}>
-                        {order.status.replace('_', ' ').toUpperCase()}
-                      </Badge>
+                    <div className="flex items-center gap-2 flex-col">
+                      <div className="flex gap-2">
+                        <Badge className={getStatusColor(order.status)}>
+                          {order.status.replace('_', ' ').toUpperCase()}
+                        </Badge>
+                        <Badge className={getPaymentStatusColor(order.payment_status)}>
+                          {order.payment_status.toUpperCase()}
+                        </Badge>
+                      </div>
                       
                       <div className="flex gap-1">
                         <Button
@@ -290,7 +324,6 @@ export const OrderManagement = () => {
                           <Eye className="h-4 w-4" />
                         </Button>
                         
-                        {/* Both admin and staff can now edit/delete orders */}
                         {(user?.role === 'admin' || user?.role === 'restaurant_staff') && (
                           <>
                             <Button
@@ -315,13 +348,12 @@ export const OrderManagement = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
                     <div>
                       <label className="text-sm font-medium">Status</label>
                       <Select 
                         value={order.status} 
                         onValueChange={(value) => handleStatusChange(order.id, value)}
-                        disabled={user?.role === 'restaurant_staff' && !['pending', 'confirmed', 'preparing', 'ready'].includes(order.status)}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -331,19 +363,53 @@ export const OrderManagement = () => {
                           <SelectItem value="confirmed">Confirmed</SelectItem>
                           <SelectItem value="preparing">Preparing</SelectItem>
                           <SelectItem value="ready">Ready</SelectItem>
-                          {(user?.role === 'admin') && (
-                            <>
-                              <SelectItem value="assigned">Assigned</SelectItem>
-                              <SelectItem value="picked_up">Picked Up</SelectItem>
-                              <SelectItem value="delivered">Delivered</SelectItem>
-                              <SelectItem value="cancelled">Cancelled</SelectItem>
-                            </>
-                          )}
+                          <SelectItem value="assigned">Assigned</SelectItem>
+                          <SelectItem value="picked_up">Picked Up</SelectItem>
+                          <SelectItem value="delivered">Delivered</SelectItem>
+                          <SelectItem value="cancelled">Cancelled</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
-                    {/* Staff assignment - available for both admin and staff */}
+                    <div>
+                      <label className="text-sm font-medium flex items-center gap-1">
+                        <CreditCard className="h-4 w-4" />
+                        Payment Status
+                      </label>
+                      <Select 
+                        value={order.payment_status} 
+                        onValueChange={(value) => handlePaymentStatusChange(order.id, value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="paid">Paid</SelectItem>
+                          <SelectItem value="failed">Failed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">Payment Mode</label>
+                      <Select 
+                        value={order.payment_mode || 'cod'} 
+                        onValueChange={(value) => handlePaymentModeChange(order.id, value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cod">Cash on Delivery</SelectItem>
+                          <SelectItem value="esewa">eSewa</SelectItem>
+                          <SelectItem value="phonepay">PhonePay</SelectItem>
+                          <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                          <SelectItem value="online">Online Payment</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div>
                       <label className="text-sm font-medium flex items-center gap-1">
                         <User className="h-4 w-4" />
@@ -372,7 +438,6 @@ export const OrderManagement = () => {
                       )}
                     </div>
 
-                    {/* Rider assignment - now available for both admin and staff */}
                     <div>
                       <label className="text-sm font-medium flex items-center gap-1">
                         <Bike className="h-4 w-4" />
@@ -413,13 +478,17 @@ export const OrderManagement = () => {
                           </div>
                         ))}
                       </div>
-                      <div className="mt-2 text-sm text-gray-600">
+                      <div className="mt-2 text-sm text-gray-600 space-y-1">
                         <p>Created: {new Date(order.created_at).toLocaleString()}</p>
+                        <p>Payment Mode: {order.payment_mode?.replace('_', ' ').toUpperCase() || 'COD'}</p>
                         {order.kitchen_assigned_at && (
                           <p>Kitchen Assigned: {new Date(order.kitchen_assigned_at).toLocaleString()}</p>
                         )}
                         {order.rider_assigned_at && (
                           <p>Rider Assigned: {new Date(order.rider_assigned_at).toLocaleString()}</p>
+                        )}
+                        {order.collected_amount && (
+                          <p>Cash Collected: NPR {order.collected_amount} by {order.collected_by_user?.name}</p>
                         )}
                       </div>
                     </div>

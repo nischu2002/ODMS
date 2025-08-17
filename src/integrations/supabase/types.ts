@@ -59,6 +59,60 @@ export type Database = {
           },
         ]
       }
+      cash_collections: {
+        Row: {
+          amount: number
+          collected_at: string
+          created_at: string
+          id: string
+          notes: string | null
+          order_id: string
+          rider_id: string
+          status: string
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          collected_at?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          order_id: string
+          rider_id: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          collected_at?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          order_id?: string
+          rider_id?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_collections_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_collections_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cms_content: {
         Row: {
           content: string
@@ -303,6 +357,9 @@ export type Database = {
         Row: {
           assigned_rider_id: string | null
           assigned_staff_id: string | null
+          collected_amount: number | null
+          collected_at: string | null
+          collected_by: string | null
           created_at: string
           customer_address: string
           customer_name: string
@@ -310,6 +367,7 @@ export type Database = {
           estimated_delivery_time: string | null
           id: string
           kitchen_assigned_at: string | null
+          payment_mode: string | null
           payment_status: string
           restaurant_id: string
           rider_assigned_at: string | null
@@ -320,6 +378,9 @@ export type Database = {
         Insert: {
           assigned_rider_id?: string | null
           assigned_staff_id?: string | null
+          collected_amount?: number | null
+          collected_at?: string | null
+          collected_by?: string | null
           created_at?: string
           customer_address: string
           customer_name: string
@@ -327,6 +388,7 @@ export type Database = {
           estimated_delivery_time?: string | null
           id?: string
           kitchen_assigned_at?: string | null
+          payment_mode?: string | null
           payment_status?: string
           restaurant_id: string
           rider_assigned_at?: string | null
@@ -337,6 +399,9 @@ export type Database = {
         Update: {
           assigned_rider_id?: string | null
           assigned_staff_id?: string | null
+          collected_amount?: number | null
+          collected_at?: string | null
+          collected_by?: string | null
           created_at?: string
           customer_address?: string
           customer_name?: string
@@ -344,6 +409,7 @@ export type Database = {
           estimated_delivery_time?: string | null
           id?: string
           kitchen_assigned_at?: string | null
+          payment_mode?: string | null
           payment_status?: string
           restaurant_id?: string
           rider_assigned_at?: string | null
@@ -362,6 +428,13 @@ export type Database = {
           {
             foreignKeyName: "orders_assigned_staff_id_fkey"
             columns: ["assigned_staff_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_collected_by_fkey"
+            columns: ["collected_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]

@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   email: string;
@@ -48,6 +49,10 @@ export interface Order {
   createdAt: string;
   estimatedDeliveryTime?: string;
   paymentStatus: 'pending' | 'paid' | 'failed';
+  paymentMode: 'cod' | 'esewa' | 'phonepay' | 'bank_transfer' | 'online';
+  collectedAmount?: number;
+  collectedBy?: string;
+  collectedAt?: string;
   kitchen_assigned_at?: string;
   rider_assigned_at?: string;
 }
@@ -58,6 +63,24 @@ export interface OrderItem {
   quantity: number;
   price: number;
   notes?: string;
+}
+
+export interface CashCollection {
+  id: string;
+  riderId: string;
+  orderId: string;
+  amount: number;
+  collectedAt: string;
+  submittedAt?: string;
+  status: 'collected' | 'submitted';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  order?: {
+    customerName: string;
+    customerPhone: string;
+    totalAmount: number;
+  };
 }
 
 export interface DeliveryRider {

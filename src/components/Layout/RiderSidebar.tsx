@@ -7,7 +7,8 @@ import {
   MapPin, 
   Clock, 
   User,
-  Bell
+  Bell,
+  Banknote
 } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications';
 import { Badge } from '../ui/badge';
@@ -15,6 +16,7 @@ import { Badge } from '../ui/badge';
 const navigation = [
   { name: 'Dashboard', href: '/rider', icon: LayoutDashboard, tab: 'dashboard' },
   { name: 'My Deliveries', href: '/rider?tab=deliveries', icon: Package, tab: 'deliveries' },
+  { name: 'Cash Collection', href: '/rider?tab=cash', icon: Banknote, tab: 'cash' },
   { name: 'Live Tracking', href: '/rider?tab=location', icon: MapPin, tab: 'location' },
   { name: 'History', href: '/rider?tab=history', icon: Clock, tab: 'history' },
   { name: 'Notifications', href: '/rider?tab=notifications', icon: Bell, tab: 'notifications' },
