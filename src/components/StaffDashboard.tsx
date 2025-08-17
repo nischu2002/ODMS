@@ -28,6 +28,7 @@ import { CreateOrderForm } from './CreateOrderForm';
 import { StaffManagement } from './StaffManagement';
 import { RiderManagement } from './RiderManagement';
 import { NotificationCenter } from './NotificationCenter';
+import { Analytics } from './Analytics';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 export const StaffDashboard = () => {
@@ -140,43 +141,7 @@ export const StaffDashboard = () => {
       case 'riders':
         return user?.role === 'admin' ? <RiderManagement /> : <div className="text-center py-8 text-gray-500">Access denied. Admin only.</div>;
       case 'analytics':
-        return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Orders Processed</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{dashboardData?.todayOrdersCount || 0}</div>
-                  <p className="text-sm text-gray-500">Today</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Revenue Generated</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">${dashboardData?.todayRevenue?.toFixed(2) || '0.00'}</div>
-                  <p className="text-sm text-gray-500">Today</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Menu Availability</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {dashboardData?.totalMenuItems ? 
-                      Math.round((dashboardData.availableMenuItems / dashboardData.totalMenuItems) * 100) : 0}%
-                  </div>
-                  <p className="text-sm text-gray-500">Available Items</p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        );
+        return <Analytics />;
       case 'notifications':
         return <NotificationCenter />;
       default:
@@ -185,9 +150,9 @@ export const StaffDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold">
-                  {user?.role === 'admin' ? 'Admin Dashboard' : 'Staff Dashboard'}
+                  {user?.role === 'admin' ? 'Restaurant Admin Dashboard' : 'Staff Dashboard'}
                 </h1>
-                <p className="text-gray-600">Welcome back, {user?.name}! Here's your daily overview.</p>
+                <p className="text-gray-600">Welcome back, {user?.name}! Here's your restaurant overview.</p>
               </div>
             </div>
 
@@ -212,7 +177,7 @@ export const StaffDashboard = () => {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${dashboardData?.todayRevenue?.toFixed(2) || '0.00'}</div>
+                  <div className="text-2xl font-bold">NPR {dashboardData?.todayRevenue?.toFixed(2) || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">
                     Sales performance
                   </p>
@@ -272,51 +237,52 @@ export const StaffDashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* Menu Overview */}
+              {/* Quick Actions for Restaurant Admin */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Menu Overview</CardTitle>
-                  <CardDescription>Current menu status and availability</CardDescription>
+                  <CardTitle>Quick Actions</CardTitle>
+                  <CardDescription>Manage your restaurant operations</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                        <span className="font-medium">Available Items</span>
-                      </div>
-                      <span className="text-2xl font-bold text-green-600">
-                        {dashboardData?.availableMenuItems || 0}
-                      </span>
-                    </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Button 
+                      onClick={() => handleTabChange('create-order')}
+                      className="flex flex-col items-center gap-2 h-auto py-4"
+                    >
+                      <Plus className="h-6 w-6" />
+                      <span>Create Order</span>
+                    </Button>
                     
-                    <div className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <AlertCircle className="h-5 w-5 text-gray-600" />
-                        <span className="font-medium">Total Items</span>
-                      </div>
-                      <span className="text-2xl font-bold">
-                        {dashboardData?.totalMenuItems || 0}
-                      </span>
-                    </div>
-
-                    <div className="mt-4">
-                      <div className="text-sm text-gray-600 mb-2">Availability Rate</div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-green-600 h-2 rounded-full" 
-                          style={{ 
-                            width: `${dashboardData?.totalMenuItems ? 
-                              (dashboardData.availableMenuItems / dashboardData.totalMenuItems) * 100 : 0}%` 
-                          }}
-                        ></div>
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {dashboardData?.totalMenuItems ? 
-                          Math.round((dashboardData.availableMenuItems / dashboardData.totalMenuItems) * 100) : 0}% 
-                        of menu items are available
-                      </div>
-                    </div>
+                    <Button 
+                      onClick={() => handleTabChange('menu')}
+                      variant="outline"
+                      className="flex flex-col items-center gap-2 h-auto py-4"
+                    >
+                      <ChefHat className="h-6 w-6" />
+                      <span>Manage Menu</span>
+                    </Button>
+                    
+                    {user?.role === 'admin' && (
+                      <>
+                        <Button 
+                          onClick={() => handleTabChange('staff')}
+                          variant="outline"
+                          className="flex flex-col items-center gap-2 h-auto py-4"
+                        >
+                          <Users className="h-6 w-6" />
+                          <span>Manage Staff</span>
+                        </Button>
+                        
+                        <Button 
+                          onClick={() => handleTabChange('riders')}
+                          variant="outline"
+                          className="flex flex-col items-center gap-2 h-auto py-4"
+                        >
+                          <Truck className="h-6 w-6" />
+                          <span>Manage Riders</span>
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
